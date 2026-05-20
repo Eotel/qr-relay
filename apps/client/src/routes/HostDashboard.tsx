@@ -1,24 +1,30 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { HeroTile } from "../components/host/HeroTile.js";
 import { InfectionGridTile } from "../components/host/InfectionGridTile.js";
 import { JoinQrTile } from "../components/host/JoinQrTile.js";
 import { LastScanTicker } from "../components/host/LastScanTicker.js";
 import { ParticipantListTile } from "../components/host/ParticipantListTile.js";
 import { RankingsTile } from "../components/host/RankingsTile.js";
-import { StopwatchTile } from "../components/host/StopwatchTile.js";
+import { ScanCountTile } from "../components/host/ScanCountTile.js";
+import { StopwatchTileLive } from "../components/host/StopwatchTile.js";
 import { TokenPathTile } from "../components/host/TokenPathTile.js";
 import { type HostViewMode, ViewSwitcher } from "../components/host/ViewSwitcher.js";
 import {
+  type Rankings,
+  type TokenPathStep,
   encounterCounts,
   pickHostHeroView,
   rankings,
-  recentThroughput,
+  summarizeMetricsForHost,
   tokenPathChain,
 } from "../lib/host-view.js";
-import { displayMs } from "../lib/ws-store.js";
 import { useWs } from "../lib/ws.js";
 
-const THROUGHPUT_WINDOW_MS = 60_000;
+// Stable empty refs so React.memo on hidden focus tiles short-circuits
+// re-rendering when their data isn't being computed (mode-gated below).
+const EMPTY_RANKINGS: Rankings = { scanOut: [], scanIn: [] };
+const EMPTY_ENCOUNTERS: Record<string, number> = {};
+const EMPTY_CHAIN: TokenPathStep[] = [];
 
 type Props = { code: string };
 
@@ -34,29 +40,21 @@ type Props = { code: string };
  * LastScanTicker pulse and the QR canvas alive across switches and avoids
  * the flash you'd get from a remount.
  *
- * Owns the live store subscriptions and the stopwatch tick driver. Host
- * operator controls (start/pause/resume/reset) live in `RoomLayout`'s
- * header instead of a footer band, so the dashboard's vertical budget
- * goes entirely to content.
+ * Owns the live store subscriptions. The stopwatch tick lives in
+ * `StopwatchTileLive` instead of here so the 250 ms re-renders are
+ * scoped to the clock cell and don't cascade through the sibling tiles.
+ * Host operator controls (start/pause/resume/reset) live in `RoomLayout`'s
+ * header, so the dashboard's vertical budget goes entirely to content.
  */
 export function HostDashboard({ code }: Props) {
   const players = useWs((s) => s.players);
   const phase = useWs((s) => s.phase);
   const state = useWs((s) => s.state);
   const room = useWs((s) => s.room);
+  const metrics = useWs((s) => s.metrics);
   const lastScanEvent = useWs((s) => s.lastScanEvent);
 
   const [mode, setMode] = useState<HostViewMode>("overview");
-  const [tick, setTick] = useState(0);
-
-  useEffect(() => {
-    if (phase.kind !== "running") return;
-    const id = window.setInterval(() => setTick((t) => t + 1), 250);
-    return () => window.clearInterval(id);
-  }, [phase.kind]);
-
-  void tick;
-  const elapsed = displayMs(phase, Date.now());
 
   const view = pickHostHeroView({
     phase,
@@ -67,27 +65,25 @@ export function HostDashboard({ code }: Props) {
   const overviewKind: OverviewKind = view.kind === "waiting" ? "waiting" : "play";
   const layoutKey: LayoutKey = mode === "overview" ? `overview-${overviewKind}` : `focus-${mode}`;
 
-  const rankingsData = useMemo(() => rankings(state, players), [state, players]);
-  const encounters = useMemo(() => encounterCounts(state, players), [state, players]);
-  const chain = useMemo(() => tokenPathChain(state, players), [state, players]);
-
-  // Throughput re-computes on every tick while running; pause/ready keep the
-  // last running value so the host sees what just happened, not a slow drift
-  // to 0 as history ages out of the 60s window. Reset (→ ready) zeroes it.
-  const lastThroughputRef = useRef(0);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: tick drives Date.now() recompute
-  const throughput = useMemo<number>(() => {
-    if (phase.kind === "running") {
-      const v = recentThroughput(state, Date.now(), THROUGHPUT_WINDOW_MS);
-      lastThroughputRef.current = v;
-      return v;
-    }
-    if (phase.kind === "ready") {
-      lastThroughputRef.current = 0;
-      return 0;
-    }
-    return lastThroughputRef.current;
-  }, [phase.kind, state, tick]);
+  // Heavy derivations are gated on the visible mode. A push of `state` on
+  // every scan would otherwise walk `pairCounts`, sort the player list,
+  // and rebuild the path chain even when the host is parked in `overview`
+  // or `infection`. The hidden tiles still mount (so display:none toggles
+  // are instant), but they receive stable empty refs and skip rendering
+  // via React.memo on each focus tile.
+  const rankingsData = useMemo(
+    () => (mode === "rankings" ? rankings(state, players) : EMPTY_RANKINGS),
+    [mode, state, players],
+  );
+  const encounters = useMemo(
+    () => (mode === "rankings" ? encounterCounts(state, players) : EMPTY_ENCOUNTERS),
+    [mode, state, players],
+  );
+  const chain = useMemo(
+    () => (mode === "token-path" ? tokenPathChain(state, players) : EMPTY_CHAIN),
+    [mode, state, players],
+  );
+  const { totalScans } = useMemo(() => summarizeMetricsForHost(metrics), [metrics]);
 
   return (
     <section
@@ -120,8 +116,11 @@ export function HostDashboard({ code }: Props) {
       <Cell area="participants" visible={mode === "participants"}>
         <ParticipantListTile players={players} />
       </Cell>
+      <Cell area="scans" visible={mode === "overview" && overviewKind === "play"}>
+        <ScanCountTile totalScans={totalScans} />
+      </Cell>
       <Cell area="clock" visible>
-        <StopwatchTile phase={phase} elapsedMs={elapsed} throughput={throughput} />
+        <StopwatchTileLive phase={phase} />
       </Cell>
     </section>
   );
@@ -163,6 +162,10 @@ type LayoutKey =
  * Overview rows: `auto repeat(9, minmax(0, 1fr))` — switcher (auto) +
  * 9 flex rows (7 hero + 2 ticker/clock).
  *
+ * `scans` only appears in `overview-play` — during waiting the total is
+ * always 0 (game hasn't started), and focus modes intentionally show
+ * one metric at a time.
+ *
  * Focus rows: `auto repeat(8, minmax(0, 1fr)) auto` — the trailing `auto`
  * lets the stopwatch sit at its natural content height instead of being
  * crushed into a 1/9-fr sliver that clipped digits and labels.
@@ -196,8 +199,8 @@ const layoutStyles: Record<LayoutKey, React.CSSProperties> = {
       "hero hero hero hero hero hero hero hero hero hero hero hero"
       "hero hero hero hero hero hero hero hero hero hero hero hero"
       "hero hero hero hero hero hero hero hero hero hero hero hero"
-      "ticker ticker ticker ticker ticker ticker clock clock clock clock qr qr"
-      "ticker ticker ticker ticker ticker ticker clock clock clock clock qr qr"
+      "ticker ticker ticker ticker scans scans clock clock clock clock qr qr"
+      "ticker ticker ticker ticker scans scans clock clock clock clock qr qr"
     `,
   },
   "focus-rankings": focusLayout("rankings"),

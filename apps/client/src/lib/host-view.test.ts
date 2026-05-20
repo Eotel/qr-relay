@@ -5,7 +5,6 @@ import {
   encounterCounts,
   pickHostHeroView,
   rankings,
-  recentThroughput,
   summarizeMetricsForHost,
   tokenPathChain,
 } from "./host-view.js";
@@ -301,42 +300,6 @@ describe("encounterCounts", () => {
       players,
     );
     expect(counts).toEqual({ alice: 1, bob: 0, carol: 0 });
-  });
-});
-
-describe("recentThroughput", () => {
-  const now = 10_000;
-  const window = 60_000;
-
-  it("counts history entries within the window", () => {
-    const state = stateWithHistory([
-      { scannerId: "alice", scannedId: "bob", ts: now - 70_000 }, // outside
-      { scannerId: "alice", scannedId: "carol", ts: now - 30_000 },
-      { scannerId: "bob", scannedId: "alice", ts: now - 1 },
-      { scannerId: "carol", scannedId: "alice", ts: now }, // boundary inclusive
-    ]);
-    expect(recentThroughput(state, now, window)).toBe(3);
-  });
-
-  it("returns 0 for empty history", () => {
-    expect(recentThroughput(stateWithHistory([]), now, window)).toBe(0);
-    expect(recentThroughput(null, now, window)).toBe(0);
-  });
-
-  it("excludes entries strictly older than the window", () => {
-    const state = stateWithHistory([
-      { scannerId: "a", scannedId: "b", ts: now - window - 1 },
-      { scannerId: "a", scannedId: "b", ts: now - window },
-    ]);
-    expect(recentThroughput(state, now, window)).toBe(1);
-  });
-
-  it("ignores future-dated entries (clock skew defensiveness)", () => {
-    const state = stateWithHistory([
-      { scannerId: "a", scannedId: "b", ts: now + 5_000 },
-      { scannerId: "a", scannedId: "b", ts: now },
-    ]);
-    expect(recentThroughput(state, now, window)).toBe(1);
   });
 });
 

@@ -250,22 +250,6 @@ export function encounterCounts(state: unknown, players: PlayerLite[]): Record<s
 }
 
 /**
- * Count of scans in the most recent `windowMs` window relative to `now`.
- * Inclusive on both ends; future-dated entries (clock skew) are ignored.
- * Pure: callers freeze the value during `paused` by capturing the last
- * running-phase result themselves.
- */
-export function recentThroughput(state: unknown, now: number, windowMs: number): number {
-  const history = readHistory(state);
-  const cutoff = now - windowMs;
-  let count = 0;
-  for (const h of history) {
-    if (h.ts >= cutoff && h.ts <= now) count += 1;
-  }
-  return count;
-}
-
-/**
  * Scan history in time-ascending order, each entry resolved to player names so
  * the dashboard can render `Alice → Bob` rows without re-joining player data.
  * Unknown player IDs (e.g., disconnected) fall back to a short id stub so the

@@ -1,15 +1,11 @@
 import type { Phase } from "@qr-relay/core";
 import { cn } from "@qr-relay/ui/cn";
+import { useEffect, useState } from "react";
+import { displayMs } from "../../lib/ws-store.js";
 
 type Props = {
   phase: Phase;
   elapsedMs: number;
-  /**
-   * Scans in the last 60s. Caller is responsible for freezing the value
-   * during `paused` so it doesn't drift to 0 while history ages past the
-   * window. Omit to hide the throughput line entirely (e.g., empty room).
-   */
-  throughput?: number;
 };
 
 export function formatStopwatch(ms: number): string {
@@ -29,7 +25,7 @@ const PHASE_LABEL: Record<Phase["kind"], string> = {
  * Giant clock for the stage. Parent owns the tick driver (so the rest of the
  * dashboard doesn't re-render every 250ms unnecessarily).
  */
-export function StopwatchTile({ phase, elapsedMs, throughput }: Props) {
+export function StopwatchTile({ phase, elapsedMs }: Props) {
   return (
     <section
       aria-label="ストップウォッチ"
@@ -62,12 +58,26 @@ export function StopwatchTile({ phase, elapsedMs, throughput }: Props) {
       >
         {PHASE_LABEL[phase.kind]}
       </span>
-      {throughput !== undefined && (
-        <span className="mt-0.5 inline-flex items-baseline gap-1.5 text-[11px] font-extrabold uppercase tracking-[0.18em] text-muted-foreground">
-          <span>直近 60s</span>
-          <span className="tabular-nums text-foreground">{throughput}</span>
-        </span>
-      )}
     </section>
   );
+}
+
+/**
+ * Self-ticking variant for the host dashboard. Owns its own 250 ms interval
+ * so the clock's re-renders don't propagate up to the dashboard root and
+ * cascade through sibling tiles. The pure `StopwatchTile` stays the
+ * presentation primitive (and the unit-test surface); only this wrapper
+ * subscribes to wall-clock time.
+ */
+export function StopwatchTileLive({ phase }: { phase: Phase }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (phase.kind !== "running") {
+      setNow(Date.now());
+      return;
+    }
+    const id = window.setInterval(() => setNow(Date.now()), 250);
+    return () => window.clearInterval(id);
+  }, [phase.kind]);
+  return <StopwatchTile phase={phase} elapsedMs={displayMs(phase, now)} />;
 }
