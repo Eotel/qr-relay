@@ -66,6 +66,21 @@ export function RoomLayout() {
     navigate(`/r/${code}/closed`, { replace: true });
   }, [closed, code, navigate]);
 
+  // Mobile browser chrome (status bar / address bar) follows the
+  // <meta name="theme-color"> value. The host gets the dark stage register
+  // via `<main class="dark">`, so without this effect the OS chrome stays
+  // cream while the page goes slate-navy. Swap on enter, restore on leave.
+  useEffect(() => {
+    if (role !== "host") return;
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (!meta) return;
+    const prev = meta.getAttribute("content");
+    meta.setAttribute("content", "#1e2433");
+    return () => {
+      if (prev !== null) meta.setAttribute("content", prev);
+    };
+  }, [role]);
+
   if (!role) {
     // Role unresolved (direct nav to /r/CODE without joining via Home/NewRoom).
     // Send the user back to Home so they can choose host or client.
@@ -94,6 +109,11 @@ export function RoomLayout() {
         // bg-background/text-foreground above must be on the same element as `dark`
         // so the dark-register variables resolve at main's own background and text.
         role === "host" && "dark",
+        // Stage dashboard locks to viewport height with `overflow-hidden` so
+        // PlayerBoard and tiles never trigger page scroll — the audience reads
+        // a fixed frame, not a moving document. Handheld (<md) keeps the
+        // scrollable `min-h-dvh` flow it already uses.
+        role === "host" && "md:h-dvh md:overflow-hidden",
       )}
     >
       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">

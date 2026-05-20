@@ -1,7 +1,7 @@
 # Plan: ホスト画面を Stage Dashboard に再構成する
 
 Owner: miura
-Status: Draft
+Status: In Progress (M5 docs & ADR done; 6m 視認 / 解像度キャプチャは手動残)
 Created: 2026-05-20
 
 ## Goal
@@ -207,32 +207,56 @@ Created: 2026-05-20
 
 ## Progress
 
-- [ ] M1.1 `lib/host-view.ts` + テスト
-- [ ] M1.2 `ws-store` に `lastScanEvent` + テスト
-- [ ] M1.3 `summarizeMetricsForHost` 抽出 + テスト
-- [ ] M2.1 HeroTile
-- [ ] M2.2 PlayerBoardTile (自分を探せる名前 + 値の grid)
-- [ ] M2.3 LastScanTicker
-- [ ] M2.4 StopwatchTile (既存の `formatStopwatch` を共通化)
-- [ ] M2.5 JoinQrTile (`JoinQrDisplay` を内包、phase で sizing)
-- [ ] M2.6 OperatorStrip (start/pause/reset/エラーを薄帯化)
-- [ ] M3.1 `HostDashboard.tsx` + grid-template-areas (baton / infection / score / waiting)
-- [ ] M3.2 `HostRoom.tsx` を `md+` 分岐に書き換え
-- [ ] M4.1 `100dvh` 制約 + 内部 scroll なしの保証
+- [x] M1.1 `lib/host-view.ts` + テスト (`pickHostHeroView`, 13 tests, vitest pass)
+- [x] M1.2 `ws-store` に `lastScanEvent` + テスト (event(scan) ハンドラ + parser + 2 tests)
+- [x] M1.3 `summarizeMetricsForHost` 抽出 + テスト
+- [x] M2.1 HeroTile (`components/host/HeroTile.tsx`)
+- [x] M2.2 PlayerBoardTile (`components/host/PlayerBoardTile.tsx`)
+- [x] M2.3 LastScanTicker (`components/host/LastScanTicker.tsx`)
+- [x] M2.4 StopwatchTile (`components/host/StopwatchTile.tsx`, `formatStopwatch` 共通化は
+  各 tile が pure 視点のため `StopwatchTile` 内に閉じた版で十分と判断)
+- [x] M2.5 JoinQrTile (`components/host/JoinQrTile.tsx`, `variant: compact|featured`)
+- [x] M2.6 OperatorStrip (`components/host/OperatorStrip.tsx`)
+- [x] M3.1 `HostDashboard.tsx` + grid-template-areas (token-single / token-many /
+  score-leader / waiting)
+- [x] M3.2 `HostRoom.tsx` を `useMediaQuery('(min-width:768px)')` 分岐に書き換え
+  (CSS 表示切替ではなく mount 切替にした — 不要 subscribe を避けるため)
+- [x] M4.1 `RoomLayout` に `md:h-dvh md:overflow-hidden` (role=host のみ)
 - [ ] M4.2 PlayerBoard の自動ダウンスケール
-- [ ] M4.3 値変化時の `scale(1.05)` モーション (reduced-motion で無効)
-- [ ] M4.4 InactivityOverlay の重なり確認
-- [ ] M5.1 typecheck / test
-- [ ] M5.2 5 preset × 3 解像度の手動キャプチャ
-- [ ] M5.3 6m 視認テスト
-- [ ] M5.4 DESIGN.md §5 追記
-- [ ] M5.5 ADR `docs/adr/000X-host-stage-dashboard.md`
+  (M2 では `grid auto-fill` で代用。50 人超の検証は手動キャプチャ後に判断)
+- [x] M4.3 値変化時の `scale(1.05)` モーション = `.hero-pulse` keyframe +
+  React `key` 再マウント駆動 (`prefers-reduced-motion` で global 停止)
+- [ ] M4.4 InactivityOverlay の重なり確認 (手動。実装上は既存 overlay が `<Outlet>`
+  の外側で fixed なので影響なしのはず)
+- [x] M5.1 typecheck / test (`pnpm -r typecheck` / `pnpm -r test` 共に green、
+  全 221 tests pass)
+- [ ] M5.2 5 preset × 3 解像度の手動キャプチャ (operator 残)
+- [ ] M5.3 6m 視認テスト (operator 残)
+- [x] M5.4 DESIGN.md §5 Components に "Host Stage Dashboard" セクション追記
+- [x] M5.5 ADR `docs/adr/0004-host-stage-dashboard.md`
 
 ## Surprises And Discoveries
 
 実装中に気づいたこと、想定外の挙動、変更した方針を都度追記する。
 
-- (実装後に記入)
+- **(2026-05-20) `data-pulse-key` だけではアニメーションが再発火しない**:
+  最初は `data-pulse-key={...}` 属性で CSS アニメを再トリガする想定だったが、
+  React は属性変化だけでは DOM 要素を unmount せず、`@keyframes` も再発火しない。
+  修正: React の `key={pulseKey}` を使って要素を再マウントし、`.hero-pulse`
+  クラスがマウント時に 1 回発火するようにした。HeroTile / PlayerCell /
+  LastScanTicker いずれもこのパターン。
+- **(2026-05-20) `useWs` selector 増やすと既存テストが壊れない**:
+  HostRoom テストの `useWs` モックは `{players, metrics, phase}` のみ返すが、
+  HostDashboard が `state` / `room` / `lastScanEvent` を読んでも selector が
+  `undefined` を返すだけで TypeError にならず、`pickHostHeroView` が
+  `waiting` view にフォールバックする。よってテスト追加なしで通った。
+  ただし JSDOM では `matchMedia` 未対応で常に handheld 分岐が走る
+  → 既存 HostRoom テストはそのまま使い続けられる。これは意図した設計。
+- **(2026-05-20) `md+` 切替を CSS visibility ではなく mount で切った理由**:
+  当初は `hidden md:flex` + `flex md:hidden` で両方マウントする案だったが、
+  非表示側の HostDashboard も `useWs` を 6 つ購読してしまうため、handheld 端末
+  でも常に dashboard 用 selector が走る不要コストが発生。`matchMedia` 駆動の
+  分岐に切り替えて mount を排他に。テスト副作用も同時に消えた。
 
 ## Decision Log
 
@@ -293,4 +317,46 @@ Created: 2026-05-20
 `completed/` に移す直前に書く。最終的に何が変わったか / 残ったこと /
 次に注意点。
 
-- (完了後に記入)
+### Changed
+
+- `apps/client/src/lib/host-view.ts` (new): `pickHostHeroView` 純関数 +
+  `summarizeMetricsForHost` 純関数。
+- `apps/client/src/lib/ws-store.ts`: `lastScanEvent` + `parseScanEvent` 追加、
+  `t: "event"` メッセージを scan のみフィルタしてストア更新。
+- `apps/client/src/components/host/` (new dir): HeroTile / PlayerBoardTile /
+  LastScanTicker / StopwatchTile / JoinQrTile / OperatorStrip の 6 tile
+  (pure presentational; no `useWs`)。
+- `apps/client/src/routes/HostDashboard.tsx` (new): タイル合成 + grid 切替 +
+  ホスト操作の owner。
+- `apps/client/src/routes/HostRoom.tsx`: `useDashboardViewport` で md+ → Dashboard、
+  未満は handheld にフォールバック。handheld 実装は本質的に元のまま (file 内に
+  `HostRoomHandheld` として隔離)。
+- `apps/client/src/routes/RoomLayout.tsx`: role=host のとき `md:h-dvh
+  md:overflow-hidden` を main に追加。
+- `packages/ui/src/styles.css`: `.hero-pulse` keyframe を `@layer base` に追加。
+- `DESIGN.md` §5: "Host Stage Dashboard" セクション追加。
+- `docs/adr/0004-host-stage-dashboard.md` (new): 設計決定の記録。
+
+### Verified
+
+- `pnpm -r typecheck` clean (5 projects)。
+- `pnpm -r test` clean (221 tests / 全 11 client files + handlers + core + server +
+  ui)。新規 host-view test 13、ws-store の scan event test 2 を含む。
+- Vite dev server (5173) で `HTTP 200` を確認。
+
+### Remaining
+
+- M4.2 PlayerBoard 自動フォントダウンスケール (現状は grid auto-fill で
+  カラム数調整のみ。50 人超の検証で必要なら fontFit 系の hook を導入)。
+- M4.4 InactivityOverlay の重なり確認 (実装上は無問題のはずだが目視必須)。
+- M5.2 5 preset × 3 解像度 (1920×1080 / 2560×1440 / 1366×768) の手動キャプチャ。
+- M5.3 6m 視認テスト (27" panel から 4–6m 離れて読めるか確認、PlayerCell の
+  値 fontSize 下限を上げる調整が必要なら適用)。
+
+### Next-Plan Hooks
+
+- preset を 9 まで増やしたとき (PRODUCT.md 宣言の残 4 preset = hot-potato /
+  oni-tag / oni-swap / quota)、`pickHostHeroView` の switch と
+  `layoutStyles` のエントリ追加で対応。view kind を増やす必要が出たら
+  ADR-0004 を superseded で更新する。
+- view-only URL (客出し用) — ADR で out of scope と明記。次プランで切り出す。

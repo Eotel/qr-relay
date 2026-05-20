@@ -25,6 +25,9 @@ export type PlayerLite = { id: string; name: string; joinedAt: number };
 
 export type WsRole = "host" | "client";
 
+/** Most recent scan event. Host dashboard reads this to drive the LastScanTicker. */
+export type ScanEvent = { scannerId: string; scannedId: string; ts: number };
+
 export type WsStoreState = {
   connected: boolean;
   players: PlayerLite[];
@@ -40,6 +43,12 @@ export type WsStoreState = {
   inactivity: { closeAt: number } | null;
   /** Non-null once the server has closed the room. RoomLayout reads this to navigate. */
   closed: RoomClosed | null;
+  /**
+   * Last `scan` GameEvent received. Selector exists so the host ticker can
+   * subscribe without re-rendering on every state broadcast (history is
+   * embedded in `state`, which churns on every scan). Cleared by `reset`.
+   */
+  lastScanEvent: ScanEvent | null;
   connect: (code: string, playerId: string, role: WsRole) => void;
   disconnect: () => void;
   send: (msg: unknown) => void;
@@ -66,6 +75,24 @@ function defaultBuildUrl(code: string, playerId: string): string {
   return `${proto}://${window.location.host}/ws/${encodeURIComponent(code)}?pid=${encodeURIComponent(
     playerId,
   )}`;
+}
+
+/**
+ * Narrow a `t: "event"` payload's inner record to a ScanEvent shape.
+ * Server emits `{ kind: "scan", scannerId, scannedId, ts, detail? }`; any
+ * other event kind (or malformed shape) returns null so the store ignores it.
+ */
+export function parseScanEvent(ev: unknown): ScanEvent | null {
+  if (!ev || typeof ev !== "object") return null;
+  const e = ev as Record<string, unknown>;
+  if (e.kind !== "scan") return null;
+  const scannerId = e.scannerId;
+  const scannedId = e.scannedId;
+  const ts = e.ts;
+  if (typeof scannerId !== "string" || typeof scannedId !== "string" || typeof ts !== "number") {
+    return null;
+  }
+  return { scannerId, scannedId, ts };
 }
 
 /**
@@ -103,6 +130,7 @@ export function createWsStore(deps: WsStoreDeps): WsStore {
     reconnectTimer: null,
     inactivity: null,
     closed: null,
+    lastScanEvent: null,
 
     connect(code, playerId, role) {
       get().disconnect();
@@ -125,6 +153,9 @@ export function createWsStore(deps: WsStoreDeps): WsStore {
             }));
           } else if (data.t === "players") {
             set({ players: data.players });
+          } else if (data.t === "event") {
+            const scan = parseScanEvent(data.event);
+            if (scan) set({ lastScanEvent: scan });
           } else if (data.t === "error") {
             set({ lastError: data.message });
           } else if (data.t === "inactivity-warning") {

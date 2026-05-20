@@ -32,15 +32,27 @@
   --card-foreground: var(--foreground);
   --popover: oklch(0.99 0.006 75); /* #fffbf5 */
   --popover-foreground: var(--foreground);
-  --primary: oklch(0.65 0.13 35); /* #dc6b4f terracotta */
-  --primary-foreground: oklch(1 0 0);
+  /* UDK terracotta, darkened from #dc6b4f (L=0.65) so warm off-white text
+     reaches ~4:1 (AA-large for the 16px / 800-weight CTA). UDK's source
+     literal accepts ~3:1 with white; we keep the hue and stay slightly
+     deeper to clear AA-large by margin while still reading as terracotta. */
+  --primary: oklch(0.55 0.17 35);
+  /* Warm off-white, tinted toward the brand hue (not #fff). The prior
+     dark warm-ink value passed AA-body but contradicted the UDK pattern
+     of white-on-orange CTAs; restore UDK fidelity, pair with darker bg. */
+  --primary-foreground: oklch(0.99 0.005 75);
   --secondary: oklch(0.5 0.05 195); /* #2f6e68 teal */
   --secondary-foreground: oklch(1 0 0);
   --muted: oklch(0.92 0.01 70); /* #e8ddd0 sand */
-  --muted-foreground: oklch(0.5 0.005 60); /* #6b6660 */
+  /* L=0.42 hits ~7.4:1 on white card, ~6:1 on muted sand. Pre-fix L=0.5
+     was ~4.4:1 on white and dipped under AA on tinted bg, which made
+     body text in muted-foreground (RoleCard desc, FAQ body, hint cards)
+     drift below the contrast floor. */
+  --muted-foreground: oklch(0.42 0.005 60); /* #595550 */
   --accent: var(--primary);
   --accent-foreground: var(--primary-foreground);
   --destructive: oklch(0.62 0.22 27);
+  --destructive-foreground: oklch(0.99 0.005 27); /* off-white, tinted toward destructive hue */
   --border: oklch(0.88 0.012 70);
   --input: var(--border);
   --ring: var(--primary);
@@ -68,10 +80,18 @@
   --card-foreground: var(--foreground);
   --popover: var(--card);
   --popover-foreground: var(--foreground);
-  --primary: oklch(0.7 0.18 35); /* #ff6b3d orange */
-  --primary-foreground: oklch(1 0 0);
+  /* UDK warm orange, darkened from #ff6b3d (L=0.7) so warm off-white text
+     reaches ~3.6:1 (AA-large for the 16px / 800-weight CTA). Stays the
+     same hue family as the light register's terracotta — the brand's
+     signature is "warm orange against a neutral", dark or light. */
+  --primary: oklch(0.58 0.21 35);
+  /* Warm off-white tinted toward the brand hue (not #fff). Mirrors the
+     light-register foreground; the press-down feels identical across
+     registers because the type color is the same off-white in both. */
+  --primary-foreground: oklch(0.99 0.005 75);
   --secondary: oklch(0.62 0.2 255); /* #007aff iOS blue */
   --secondary-foreground: oklch(1 0 0);
+  --destructive-foreground: oklch(0.99 0.005 27);
   /* A genuine muted surface (slightly lighter than card) + a readable
      text color on it. Pre-fix these were both #b0b8c2, which made every
      bg-muted/text-muted-foreground pairing invisible. */
@@ -102,6 +122,7 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -140,6 +161,16 @@
     touch-action: manipulation;
   }
 
+  /* Lucide icons ship with stroke-width 2 by default. The product type is
+     800-weight (font-extrabold) almost everywhere — Title, Step pill, CTA,
+     details summary — so a 2px lucide stroke reads thinner than every
+     character beside it. Bump globally to 2.5 so icon and glyph share
+     a perceived weight. Higher numbers (3) start to feel chunky against
+     warm cream; 2.5 is the seam. */
+  svg[stroke="currentColor"] {
+    stroke-width: 2.5;
+  }
+
   /* Token-holder tint: only the player currently holding the relay token
      (baton / infection presets) gets a primary-tinted backdrop on <main>.
      Body stays neutral so the iOS safe-area gutters don't change color.
@@ -155,5 +186,45 @@
     main[data-holding="true"] {
       transition: none;
     }
+  }
+
+  /* Host stage dashboard: per-tile pulse on data-pulse-key change.
+     The element re-mounts (React's `key={pulseKey}` strategy) so the
+     `hero-pulse` keyframe fires once at mount. 80ms / ease-out matches
+     DESIGN.md's press-feedback rhythm — the only motion we allow.
+     prefers-reduced-motion zeroes it via the global rule below. */
+  .hero-pulse {
+    animation: hero-pulse 240ms ease-out 1;
+    transform-origin: center;
+  }
+
+  @keyframes hero-pulse {
+    0% {
+      transform: scale(1);
+    }
+    35% {
+      transform: scale(1.05);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+}
+
+/* Honor user motion preferences globally. The product only animates two
+   things — the 80ms press-down on buttons and a couple of 150ms color /
+   transform transitions on details summary chevrons — so reducing them is
+   cheap. PRODUCT.md commits the design to "prefers-reduced-motion に対して
+   常に safe"; this is that commitment in CSS. The 0.01ms duration (rather
+   than `none`) keeps transitionend events firing for any component that
+   listens on them while making the change visually instantaneous. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

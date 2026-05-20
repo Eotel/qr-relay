@@ -9,6 +9,7 @@ import { MetricsPanel } from "../components/MetricsPanel.js";
 import { pauseRoom, resetRoom, resumeRoom, startRoom } from "../lib/api.js";
 import { displayMs } from "../lib/ws-store.js";
 import { useWs } from "../lib/ws.js";
+import { HostDashboard } from "./HostDashboard.js";
 import type { RoomOutletContext } from "./RoomLayout.js";
 
 const qrFrame =
@@ -30,8 +31,41 @@ function formatStopwatch(ms: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+/**
+ * Host route. Routes to one of two registers based on viewport width:
+ *
+ * - `md+` (PC / projector / iPad landscape) → `HostDashboard`, the stage
+ *   register optimized for an audience reading from across the room.
+ * - `< md` (host on a phone in a pinch) → the original handheld stack,
+ *   kept verbatim so the emergency case still works.
+ *
+ * We pick one branch and mount it — not both behind CSS — so the inactive
+ * register doesn't subscribe to the store or run timers. SSR / JSDOM
+ * default to handheld (matchMedia missing → false), which keeps existing
+ * unit tests anchored to a single tree.
+ */
 export function HostRoom() {
   const { code } = useOutletContext<RoomOutletContext>();
+  const isDashboard = useDashboardViewport();
+  if (isDashboard) return <HostDashboard code={code} />;
+  return <HostRoomHandheld code={code} />;
+}
+
+/** Matches Tailwind's `md` breakpoint (768px). */
+function useDashboardViewport(): boolean {
+  const [matches, setMatches] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const mql = window.matchMedia("(min-width: 768px)");
+    setMatches(mql.matches);
+    const onChange = (e: MediaQueryListEvent) => setMatches(e.matches);
+    mql.addEventListener("change", onChange);
+    return () => mql.removeEventListener("change", onChange);
+  }, []);
+  return matches;
+}
+
+function HostRoomHandheld({ code }: { code: string }) {
   const players = useWs((s) => s.players);
   const metrics = useWs((s) => s.metrics);
   const phase = useWs((s) => s.phase);
@@ -39,7 +73,6 @@ export function HostRoom() {
   const [pending, setPending] = useState<Pending>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [resetArmed, setResetArmed] = useState(false);
-  // Tick local clock so the running stopwatch updates without a server tick.
   const [tick, setTick] = useState(0);
 
   useEffect(() => {
@@ -54,8 +87,6 @@ export function HostRoom() {
     return () => window.clearTimeout(t);
   }, [resetArmed]);
 
-  // `tick` is read here so the `running` interval forces a re-render and the
-  // displayed elapsed time keeps moving without a server-side tick.
   void tick;
   const elapsed = displayMs(phase, Date.now());
 
@@ -78,7 +109,6 @@ export function HostRoom() {
   const onResume = () => run("resume", () => resumeRoom(code));
   const onReset = () => {
     if (pending) return;
-    // ready 状態 (= 開始前 or リセット直後) は即時 reset (= no-op に近い)
     if (phase.kind !== "ready" && !resetArmed) {
       setResetArmed(true);
       return;

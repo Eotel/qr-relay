@@ -271,6 +271,31 @@ describe("createWsStore", () => {
     expect(sockets).toHaveLength(1);
   });
 
+  it("event(scan) で lastScanEvent を更新する", () => {
+    const { useWs, sockets } = setup();
+    useWs.getState().connect("ABC", "p1", "host");
+    sockets[0]?.emitOpen();
+    expect(useWs.getState().lastScanEvent).toBeNull();
+    sockets[0]?.emitMessage({
+      t: "event",
+      event: { kind: "scan", scannerId: "alice", scannedId: "bob", ts: 1_234 },
+    });
+    expect(useWs.getState().lastScanEvent).toEqual({
+      scannerId: "alice",
+      scannedId: "bob",
+      ts: 1_234,
+    });
+  });
+
+  it("event(scan) malformed / other kinds は無視する", () => {
+    const { useWs, sockets } = setup();
+    useWs.getState().connect("ABC", "p1", "host");
+    sockets[0]?.emitOpen();
+    sockets[0]?.emitMessage({ t: "event", event: { kind: "info", ts: 1, message: "hi" } });
+    sockets[0]?.emitMessage({ t: "event", event: { kind: "scan", scannerId: 1, scannedId: 2 } });
+    expect(useWs.getState().lastScanEvent).toBeNull();
+  });
+
   it("clearClosed で closed をリセットできる", () => {
     const { useWs, sockets } = setup();
     useWs.getState().connect("ABC", "p1", "client");
