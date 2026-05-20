@@ -27,6 +27,13 @@ function resolveInitialHolders(rule: ScanRule, players: Player[]): Set<string> {
   }
 }
 
+function hasAnyTokenHolder(state: RelayState): boolean {
+  for (const slot of Object.values(state.values)) {
+    if (slot.kind === "token" && slot.has) return true;
+  }
+  return false;
+}
+
 function clamp(n: number, min: number | undefined, max: number | undefined): number {
   let v = n;
   if (min !== undefined) v = Math.max(min, v);
@@ -105,17 +112,24 @@ export const relayHandler: ScanHandler<ScanRule, RelayState, unknown> = {
 
   /**
    * Mid-game join: materialize a slot for the new player so they can scan and
-   * be scanned right away. Treat the new player as a holder iff the rule's
-   * `initial.holders` is "all" — i.e., the rule says "everyone starts with
-   * the value". For "one" / "none" / pre-listed sets, late joiners always
-   * start without the value (the existing holders keep theirs).
+   * be scanned right away. Holder-promotion depends on `initial.holders`:
+   *
+   * - `"all"`: late joiners always start with the value (everyone holds).
+   * - `"one"`: if no one currently holds the token, the joiner becomes the
+   *   "first participant" — otherwise the existing holder keeps it. This
+   *   makes the "(自動: 最初の参加者)" preset work even when host clicks
+   *   Start before any client has joined, or when the sole holder has left.
+   * - `"none"` / pre-listed sets: late joiners never auto-promote; the rule
+   *   pinned a specific population at start time.
    *
    * Existing slot is preserved (rejoin / rename leaves state untouched).
    */
   onPlayerJoin({ state, config, player }) {
     if (state.values[player.id]) return state;
     const rule = config;
-    const isLateHolder = rule.initial.holders === "all";
+    const isLateHolder =
+      rule.initial.holders === "all" ||
+      (rule.initial.holders === "one" && !hasAnyTokenHolder(state));
     const fakeHolders = new Set<string>(isLateHolder ? [player.id] : []);
     const slot = makeSlot(rule, fakeHolders, player.id);
     return {

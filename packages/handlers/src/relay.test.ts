@@ -186,6 +186,39 @@ describe("relay handler - onPlayerJoin (mid-game join)", () => {
     expect(slot.kind === "token" && slot.has).toBe(false);
   });
 
+  it("baton: late joiner becomes holder when nobody currently holds (initialState ran empty)", () => {
+    // Host clicks Start before any client has joined → initialState materializes
+    // an empty values map (no holders). The first client to arrive should pick
+    // up the token automatically, otherwise the auto-pick preset gets stuck
+    // showing "—" forever.
+    const rule = getRule("baton");
+    const s0 = relayHandler.initialState({ config: rule, players: [], now: 0 });
+    expect(Object.keys(s0.values)).toHaveLength(0);
+
+    const first = makeLatePlayer("p1");
+    const s1 = relayHandler.onPlayerJoin?.({
+      state: s0,
+      config: rule,
+      player: first,
+      now: 1_000,
+    });
+    if (!s1) throw new Error("onPlayerJoin missing");
+    const slot = slotOf(s1, "p1");
+    expect(slot.kind === "token" && slot.has).toBe(true);
+
+    // Subsequent joiners do NOT steal — existing holder keeps it.
+    const second = makeLatePlayer("p2");
+    const s2 = relayHandler.onPlayerJoin?.({
+      state: s1,
+      config: rule,
+      player: second,
+      now: 2_000,
+    });
+    if (!s2) throw new Error("onPlayerJoin missing");
+    expect((slotOf(s2, "p1") as { has: boolean }).has).toBe(true);
+    expect((slotOf(s2, "p2") as { has: boolean }).has).toBe(false);
+  });
+
   it("baton: late joiner can scan a holder and take the token", () => {
     const rule = getRule("baton");
     const players = makePlayers(2);
