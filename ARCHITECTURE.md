@@ -9,8 +9,8 @@ QR Relay は pnpm workspaces の monorepo。サーバーとクライアントの
 |---|---|---|
 | `packages/core` | 共通型 / Zod schema / `ScanHandler` interface / レジストリ | `src/types.ts`, `src/schemas.ts`, `src/handler.ts`, `src/registry.ts` |
 | `packages/handlers` | 統合 relay エンジン + 9 プリセット (data) | `src/relay-rule.ts`, `src/relay.ts`, `src/presets.ts` |
-| `apps/server` | Hono + Cloudflare Workers + Room Durable Object + WebSocket | `src/index.ts`, `src/room.ts` |
-| `apps/client` | Vite + React PWA, qrcode 表示 / qr-scanner 読取 | `src/main.tsx`, `src/routes/*.tsx`, `src/components/*.tsx`, `src/lib/*.ts` |
+| `apps/server` | Hono + Cloudflare Workers + Room Durable Object + WebSocket | `src/index.ts`, `src/room.ts` (I/O adapter), `src/room-domain.ts` (pure reducer), `src/ports.ts` (`Clock`) |
+| `apps/client` | Vite + React PWA, qrcode 表示 / qr-scanner 読取 | `src/main.tsx`, `src/routes/*.tsx`, `src/components/*.tsx`, `src/lib/*.ts` (`api-client.ts`, `ws-store.ts`, `clock.ts`, `rng.ts`), `src/hooks/*.ts` |
 
 依存方向:
 
@@ -64,6 +64,39 @@ apps/client ─┘         └─ packages/handlers ─┘
 - 新しい遊び方を足したいときの第一選択は **プリセット追加**、relay で表現できない場合に
   限り別 handler を実装する。詳細:
   [docs/design-docs/scan-handler-contract.md](docs/design-docs/scan-handler-contract.md)
+
+## テスト境界 (hexagonal)
+
+副作用を port 経由で注入することで、ドメイン層を単体テストできる。
+
+```
+                ┌─────────────── adapters (I/O) ──────────────┐
+                │                                              │
+  HTTP req ──▶  apps/server/src/index.ts (Hono routes)         │
+                │      │                                       │
+                │      ▼                                       │
+                │  apps/server/src/room.ts                     │
+                │  (DurableObject: storage I/O, broadcast,     │
+                │   WS pair, getTags)                          │
+                │      │ Clock.now() / 入力                    │
+                │      ▼                                       │
+                │  apps/server/src/room-domain.ts              │  ◀── pure domain
+                │  reduceInit / reduceJoin / reduceStart /     │      (vitest で
+                │  reduceScan / gcNonces / computeMetrics      │       直接呼べる)
+                │                                              │
+                └──────────────────────────────────────────────┘
+
+  Client side:
+    routes/*.tsx (view) ──▶ lib/api-client.ts (FetchLike DI)
+                       ──▶ lib/ws-store.ts   (socketFactory + Clock DI)
+                       ──▶ hooks/useQrCode.ts  (QrGenerator DI)
+                       ──▶ hooks/useQrScanner.ts (ScannerFactory DI)
+```
+
+- `Date.now()` の直呼びは `apps/server/src/ports.ts` と
+  `apps/client/src/lib/clock.ts` の `systemClock` 内側だけに閉じている。
+- `room-domain.ts` の reducer は全て immutable な `Stored → Stored`。
+  recentNonces も `Map → Map` を返し、呼び出し側が差し替える。
 
 ## ランタイム前提
 

@@ -42,12 +42,39 @@ pnpm --filter @qr-relay/client build   # PWA ビルド確認
 
 1. `pnpm -r typecheck` が pass
 2. `pnpm -r test` が pass (新 handler/preset を足したならテストも増えていること)
-3. UI / WS 経路を触ったら `pnpm dev:server` + `pnpm dev:client` で動作確認、または
+3. `pnpm -w lint` (biome) が pass
+4. UI / WS 経路を触ったら `pnpm dev:server` + `pnpm dev:client` で動作確認、または
    `apps/server` 配下で wrangler dev + curl/WebSocket smoke (例:
    [docs/design-docs/scan-handler-contract.md](docs/design-docs/scan-handler-contract.md)
    末尾の smoke スニペット)
 
 走らせられない場合は「何を試みて何が出来なかったか」を明示する (黙ってスキップしない)。
+
+## テスト可能性ルール
+
+「良いコードはテストしやすいコード」が前提。以下のルールでドメイン層と I/O 層を分離する。
+
+1. **副作用は port 経由で注入**:
+   - 時刻は `Clock.now()` (`apps/server/src/ports.ts` / `apps/client/src/lib/clock.ts`)。
+     `Date.now()` の直呼びは禁止 (`systemClock` の中だけ許す)。
+   - 乱数 / nonce は `Rng` (`apps/client/src/lib/rng.ts`)。
+   - HTTP は `FetchLike` (`apps/client/src/lib/api-client.ts`)。
+   - WebSocket は `socketFactory` (`apps/client/src/lib/ws-store.ts`)。
+   - DOM ライブラリ (qr-scanner / qrcode) は `ScannerFactory` / `QrGenerator` で注入。
+2. **ドメイン (pure) と adapter (I/O) を分離**:
+   - `apps/server/src/room.ts` (DurableObject) は storage / broadcast / WS pair の I/O のみ。
+   - 判断 / 状態遷移は `apps/server/src/room-domain.ts` の `reduce*` 関数に集約。
+     これらは入力固定で `Stored → Stored` を返し、副作用を持たない。
+   - client 側も同じ: `routes/*.tsx` は view + DI 受け取り、ロジックは
+     `lib/api-client.ts`, `lib/ws-store.ts`, `hooks/useQr*.ts` に置く。
+3. **テストはソース隣接**:
+   - `foo.ts` の隣に `foo.test.ts`(x)。`*.test.*` / `*.spec.*` / `e2e/**` /
+     `vitest.config.*` / `playwright.config.*` は HMR の対象外 (`apps/client/vite.config.ts`
+     の `server.watch.ignored` を維持すること)。
+4. **新規ファイルを足すときの 1 問**:
+   「このファイルを単体テストするのに何が必要か?」と自問する。
+   答えに「カメラ」「ネットワーク」「`Date.now()`」「ブラウザ」が出たら、
+   その依存を port で外に追い出してから着手する。
 
 ## このファイルの維持
 
