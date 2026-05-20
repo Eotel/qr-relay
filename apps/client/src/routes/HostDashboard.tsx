@@ -1,20 +1,24 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { HeroTile } from "../components/host/HeroTile.js";
 import { InfectionGridTile } from "../components/host/InfectionGridTile.js";
 import { JoinQrTile } from "../components/host/JoinQrTile.js";
 import { LastScanTicker } from "../components/host/LastScanTicker.js";
-import { type OperatorPending, OperatorStrip } from "../components/host/OperatorStrip.js";
 import { ParticipantListTile } from "../components/host/ParticipantListTile.js";
 import { RankingsTile } from "../components/host/RankingsTile.js";
 import { StopwatchTile } from "../components/host/StopwatchTile.js";
 import { TokenPathTile } from "../components/host/TokenPathTile.js";
 import { type HostViewMode, ViewSwitcher } from "../components/host/ViewSwitcher.js";
-import { pauseRoom, resetRoom, resumeRoom, startRoom } from "../lib/api.js";
-import { pickHostHeroView, rankings, tokenPathChain } from "../lib/host-view.js";
+import {
+  encounterCounts,
+  pickHostHeroView,
+  rankings,
+  recentThroughput,
+  tokenPathChain,
+} from "../lib/host-view.js";
 import { displayMs } from "../lib/ws-store.js";
 import { useWs } from "../lib/ws.js";
 
-const RESET_CONFIRM_TIMEOUT_MS = 4000;
+const THROUGHPUT_WINDOW_MS = 60_000;
 
 type Props = { code: string };
 
@@ -30,8 +34,10 @@ type Props = { code: string };
  * LastScanTicker pulse and the QR canvas alive across switches and avoids
  * the flash you'd get from a remount.
  *
- * Owns all live store subscriptions, the stopwatch tick driver, and the
- * host-side action callbacks. Tiles below are pure props in / DOM out.
+ * Owns the live store subscriptions and the stopwatch tick driver. Host
+ * operator controls (start/pause/resume/reset) live in `RoomLayout`'s
+ * header instead of a footer band, so the dashboard's vertical budget
+ * goes entirely to content.
  */
 export function HostDashboard({ code }: Props) {
   const players = useWs((s) => s.players);
@@ -41,9 +47,6 @@ export function HostDashboard({ code }: Props) {
   const lastScanEvent = useWs((s) => s.lastScanEvent);
 
   const [mode, setMode] = useState<HostViewMode>("overview");
-  const [pending, setPending] = useState<OperatorPending>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [resetArmed, setResetArmed] = useState(false);
   const [tick, setTick] = useState(0);
 
   useEffect(() => {
@@ -51,12 +54,6 @@ export function HostDashboard({ code }: Props) {
     const id = window.setInterval(() => setTick((t) => t + 1), 250);
     return () => window.clearInterval(id);
   }, [phase.kind]);
-
-  useEffect(() => {
-    if (!resetArmed) return;
-    const t = window.setTimeout(() => setResetArmed(false), RESET_CONFIRM_TIMEOUT_MS);
-    return () => window.clearTimeout(t);
-  }, [resetArmed]);
 
   void tick;
   const elapsed = displayMs(phase, Date.now());
@@ -71,33 +68,26 @@ export function HostDashboard({ code }: Props) {
   const layoutKey: LayoutKey = mode === "overview" ? `overview-${overviewKind}` : `focus-${mode}`;
 
   const rankingsData = useMemo(() => rankings(state, players), [state, players]);
+  const encounters = useMemo(() => encounterCounts(state, players), [state, players]);
   const chain = useMemo(() => tokenPathChain(state, players), [state, players]);
 
-  const run = async (kind: Exclude<OperatorPending, null>, action: () => Promise<void>) => {
-    if (pending) return;
-    setActionError(null);
-    setResetArmed(false);
-    setPending(kind);
-    try {
-      await action();
-    } catch (err) {
-      setActionError(`${kind} できませんでした: ${describeError(err)}`);
-    } finally {
-      setPending(null);
+  // Throughput re-computes on every tick while running; pause/ready keep the
+  // last running value so the host sees what just happened, not a slow drift
+  // to 0 as history ages out of the 60s window. Reset (→ ready) zeroes it.
+  const lastThroughputRef = useRef(0);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: tick drives Date.now() recompute
+  const throughput = useMemo<number>(() => {
+    if (phase.kind === "running") {
+      const v = recentThroughput(state, Date.now(), THROUGHPUT_WINDOW_MS);
+      lastThroughputRef.current = v;
+      return v;
     }
-  };
-
-  const onStart = () => run("start", () => startRoom(code));
-  const onPause = () => run("pause", () => pauseRoom(code));
-  const onResume = () => run("resume", () => resumeRoom(code));
-  const onReset = () => {
-    if (pending) return;
-    if (phase.kind !== "ready" && !resetArmed) {
-      setResetArmed(true);
-      return;
+    if (phase.kind === "ready") {
+      lastThroughputRef.current = 0;
+      return 0;
     }
-    void run("reset", () => resetRoom(code));
-  };
+    return lastThroughputRef.current;
+  }, [phase.kind, state, tick]);
 
   return (
     <section
@@ -119,7 +109,7 @@ export function HostDashboard({ code }: Props) {
         <JoinQrTile code={code} variant={overviewKind === "waiting" ? "featured" : "compact"} />
       </Cell>
       <Cell area="rankings" visible={mode === "rankings"}>
-        <RankingsTile rankings={rankingsData} />
+        <RankingsTile rankings={rankingsData} encounters={encounters} />
       </Cell>
       <Cell area="path" visible={mode === "token-path"}>
         <TokenPathTile chain={chain} />
@@ -131,19 +121,7 @@ export function HostDashboard({ code }: Props) {
         <ParticipantListTile players={players} />
       </Cell>
       <Cell area="clock" visible>
-        <StopwatchTile phase={phase} elapsedMs={elapsed} />
-      </Cell>
-      <Cell area="op" visible>
-        <OperatorStrip
-          phase={phase}
-          pending={pending}
-          resetArmed={resetArmed}
-          actionError={actionError}
-          onStart={onStart}
-          onPause={onPause}
-          onResume={onResume}
-          onReset={onReset}
-        />
+        <StopwatchTile phase={phase} elapsedMs={elapsed} throughput={throughput} />
       </Cell>
     </section>
   );
@@ -166,11 +144,6 @@ function Cell({
   );
 }
 
-function describeError(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  return String(err);
-}
-
 type OverviewKind = "waiting" | "play";
 type LayoutKey =
   | "overview-waiting"
@@ -182,18 +155,22 @@ type LayoutKey =
 
 /**
  * Six grid templates. The two overview variants mirror the pre-switcher
- * layout (waiting features the QR, play hands the hero full width). The four
- * focus templates give one metric tile the whole canvas, with switcher at
- * the top and stopwatch + operator strip pinned to the bottom band so the
- * host never loses access to start/pause/reset regardless of mode.
+ * layout (waiting features the QR, play hands the hero full width). The
+ * four focus templates give one metric tile the whole canvas. Operator
+ * controls (start/pause/resume/reset) now live in the layout header, so
+ * the dashboard's vertical budget belongs entirely to content.
  *
- * `auto repeat(10, minmax(0, 1fr))` keeps the switcher row compact while the
- * remaining 10 rows stay flex-equal under the dashboard's `h-dvh` container.
+ * Overview rows: `auto repeat(9, minmax(0, 1fr))` — switcher (auto) +
+ * 9 flex rows (7 hero + 2 ticker/clock).
+ *
+ * Focus rows: `auto repeat(8, minmax(0, 1fr)) auto` — the trailing `auto`
+ * lets the stopwatch sit at its natural content height instead of being
+ * crushed into a 1/9-fr sliver that clipped digits and labels.
  */
 const layoutStyles: Record<LayoutKey, React.CSSProperties> = {
   "overview-waiting": {
     gridTemplateColumns: "repeat(12, minmax(0, 1fr))",
-    gridTemplateRows: "auto repeat(10, minmax(0, 1fr))",
+    gridTemplateRows: "auto repeat(9, minmax(0, 1fr))",
     gridTemplateAreas: `
       "switcher switcher switcher switcher switcher switcher switcher switcher switcher switcher switcher switcher"
       "hero hero hero hero hero hero qr qr qr qr qr qr"
@@ -205,12 +182,11 @@ const layoutStyles: Record<LayoutKey, React.CSSProperties> = {
       "hero hero hero hero hero hero qr qr qr qr qr qr"
       "ticker ticker ticker clock clock clock qr qr qr qr qr qr"
       "ticker ticker ticker clock clock clock qr qr qr qr qr qr"
-      "op op op op op op op op op op op op"
     `,
   },
   "overview-play": {
     gridTemplateColumns: "repeat(12, minmax(0, 1fr))",
-    gridTemplateRows: "auto repeat(10, minmax(0, 1fr))",
+    gridTemplateRows: "auto repeat(9, minmax(0, 1fr))",
     gridTemplateAreas: `
       "switcher switcher switcher switcher switcher switcher switcher switcher switcher switcher switcher switcher"
       "hero hero hero hero hero hero hero hero hero hero hero hero"
@@ -222,7 +198,6 @@ const layoutStyles: Record<LayoutKey, React.CSSProperties> = {
       "hero hero hero hero hero hero hero hero hero hero hero hero"
       "ticker ticker ticker ticker ticker ticker clock clock clock clock qr qr"
       "ticker ticker ticker ticker ticker ticker clock clock clock clock qr qr"
-      "op op op op op op op op op op op op"
     `,
   },
   "focus-rankings": focusLayout("rankings"),
@@ -234,11 +209,10 @@ const layoutStyles: Record<LayoutKey, React.CSSProperties> = {
 function focusLayout(area: string): React.CSSProperties {
   const main = Array(12).fill(area).join(" ");
   const clock = Array(12).fill("clock").join(" ");
-  const op = Array(12).fill("op").join(" ");
   const switcher = Array(12).fill("switcher").join(" ");
   return {
     gridTemplateColumns: "repeat(12, minmax(0, 1fr))",
-    gridTemplateRows: "auto repeat(10, minmax(0, 1fr))",
+    gridTemplateRows: "auto repeat(8, minmax(0, 1fr)) auto",
     gridTemplateAreas: `
       "${switcher}"
       "${main}"
@@ -250,7 +224,6 @@ function focusLayout(area: string): React.CSSProperties {
       "${main}"
       "${main}"
       "${clock}"
-      "${op}"
     `,
   };
 }

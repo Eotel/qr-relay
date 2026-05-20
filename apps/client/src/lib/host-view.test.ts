@@ -1,8 +1,11 @@
 import type { Metric, Phase } from "@qr-relay/core";
 import { describe, expect, it } from "vitest";
 import {
+  computeGridShape,
+  encounterCounts,
   pickHostHeroView,
   rankings,
+  recentThroughput,
   summarizeMetricsForHost,
   tokenPathChain,
 } from "./host-view.js";
@@ -211,6 +214,132 @@ describe("rankings", () => {
   });
 });
 
+describe("computeGridShape", () => {
+  const wide = 16 / 9; // host dashboard is 16:9-ish
+
+  it("zero or one cell collapses to a 1x1 grid", () => {
+    expect(computeGridShape(0, wide)).toEqual({ cols: 1, rows: 1 });
+    expect(computeGridShape(1, wide)).toEqual({ cols: 1, rows: 1 });
+  });
+
+  it("on a wide container, two cells lay out as a 2x1 row (not 1x2 stack)", () => {
+    expect(computeGridShape(2, wide)).toEqual({ cols: 2, rows: 1 });
+  });
+
+  it("on a square container, two cells stack as 1x2 so cells stay roughly square", () => {
+    expect(computeGridShape(2, 1)).toEqual({ cols: 1, rows: 2 });
+  });
+
+  it("scales columns with sqrt(n * aspect) — 12 cells on a 16:9 container fills with 5 cols", () => {
+    expect(computeGridShape(12, wide)).toEqual({ cols: 5, rows: 3 });
+  });
+
+  it("never produces more columns than cells (3 players never get 5 columns)", () => {
+    const shape = computeGridShape(3, 100);
+    expect(shape.cols).toBeLessThanOrEqual(3);
+    expect(shape.cols * shape.rows).toBeGreaterThanOrEqual(3);
+  });
+
+  it("non-positive aspect ratios fall back without dividing by zero", () => {
+    expect(computeGridShape(4, 0)).toEqual({ cols: 1, rows: 4 });
+    expect(computeGridShape(4, -1)).toEqual({ cols: 1, rows: 4 });
+  });
+});
+
+function stateWithPairCounts(pairs: Record<string, number>) {
+  return { pairCounts: pairs };
+}
+
+describe("encounterCounts", () => {
+  it("counts distinct scannedIds per scannerId from pairCounts", () => {
+    const counts = encounterCounts(
+      stateWithPairCounts({
+        "alice>bob": 3,
+        "alice>carol": 1,
+        "bob>alice": 2,
+      }),
+      players,
+    );
+    expect(counts).toEqual({ alice: 2, bob: 1, carol: 0 });
+  });
+
+  it("repeat scans of the same partner do not inflate the unique count", () => {
+    const counts = encounterCounts(
+      stateWithPairCounts({
+        "alice>bob": 10,
+      }),
+      players,
+    );
+    expect(counts).toEqual({ alice: 1, bob: 0, carol: 0 });
+  });
+
+  it("returns zero for every known player when state has no pairCounts", () => {
+    expect(encounterCounts(null, players)).toEqual({ alice: 0, bob: 0, carol: 0 });
+    expect(encounterCounts({}, players)).toEqual({ alice: 0, bob: 0, carol: 0 });
+  });
+
+  it("ignores malformed keys (no '>' separator, blank halves, non-numeric values)", () => {
+    const counts = encounterCounts(
+      stateWithPairCounts({
+        "alice>bob": 1,
+        "carol-bob": 5,
+        ">bob": 5,
+        "alice>": 5,
+        "bob>carol": Number.NaN,
+      }),
+      players,
+    );
+    expect(counts).toEqual({ alice: 1, bob: 0, carol: 0 });
+  });
+
+  it("only counts pairs whose count is > 0", () => {
+    const counts = encounterCounts(
+      stateWithPairCounts({
+        "alice>bob": 0,
+        "alice>carol": 1,
+      }),
+      players,
+    );
+    expect(counts).toEqual({ alice: 1, bob: 0, carol: 0 });
+  });
+});
+
+describe("recentThroughput", () => {
+  const now = 10_000;
+  const window = 60_000;
+
+  it("counts history entries within the window", () => {
+    const state = stateWithHistory([
+      { scannerId: "alice", scannedId: "bob", ts: now - 70_000 }, // outside
+      { scannerId: "alice", scannedId: "carol", ts: now - 30_000 },
+      { scannerId: "bob", scannedId: "alice", ts: now - 1 },
+      { scannerId: "carol", scannedId: "alice", ts: now }, // boundary inclusive
+    ]);
+    expect(recentThroughput(state, now, window)).toBe(3);
+  });
+
+  it("returns 0 for empty history", () => {
+    expect(recentThroughput(stateWithHistory([]), now, window)).toBe(0);
+    expect(recentThroughput(null, now, window)).toBe(0);
+  });
+
+  it("excludes entries strictly older than the window", () => {
+    const state = stateWithHistory([
+      { scannerId: "a", scannedId: "b", ts: now - window - 1 },
+      { scannerId: "a", scannedId: "b", ts: now - window },
+    ]);
+    expect(recentThroughput(state, now, window)).toBe(1);
+  });
+
+  it("ignores future-dated entries (clock skew defensiveness)", () => {
+    const state = stateWithHistory([
+      { scannerId: "a", scannedId: "b", ts: now + 5_000 },
+      { scannerId: "a", scannedId: "b", ts: now },
+    ]);
+    expect(recentThroughput(state, now, window)).toBe(1);
+  });
+});
+
 describe("tokenPathChain", () => {
   it("returns history in time-ascending order with resolved player names", () => {
     const state = stateWithHistory([
@@ -225,9 +354,7 @@ describe("tokenPathChain", () => {
   });
 
   it("unknown player IDs fall back to a short id stub", () => {
-    const state = stateWithHistory([
-      { scannerId: "ghost-7b9c", scannedId: "alice", ts: 1 },
-    ]);
+    const state = stateWithHistory([{ scannerId: "ghost-7b9c", scannedId: "alice", ts: 1 }]);
     const chain = tokenPathChain(state, players);
     expect(chain[0]).toMatchObject({ scannerName: "#ghos", scannedName: "Alice" });
   });

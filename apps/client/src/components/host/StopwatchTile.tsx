@@ -4,6 +4,12 @@ import { cn } from "@qr-relay/ui/cn";
 type Props = {
   phase: Phase;
   elapsedMs: number;
+  /**
+   * Scans in the last 60s. Caller is responsible for freezing the value
+   * during `paused` so it doesn't drift to 0 while history ages past the
+   * window. Omit to hide the throughput line entirely (e.g., empty room).
+   */
+  throughput?: number;
 };
 
 export function formatStopwatch(ms: number): string {
@@ -23,21 +29,24 @@ const PHASE_LABEL: Record<Phase["kind"], string> = {
  * Giant clock for the stage. Parent owns the tick driver (so the rest of the
  * dashboard doesn't re-render every 250ms unnecessarily).
  */
-export function StopwatchTile({ phase, elapsedMs }: Props) {
+export function StopwatchTile({ phase, elapsedMs, throughput }: Props) {
   return (
     <section
       aria-label="ストップウォッチ"
       className={cn(
-        "flex h-full min-h-0 flex-col items-center justify-center gap-1 rounded-[var(--radius-lg)]",
+        "flex h-full min-h-0 flex-col items-center justify-center gap-1 overflow-hidden rounded-[var(--radius-lg)]",
         "border border-white/10 bg-white/[0.04] p-4",
       )}
     >
       <span className="text-[11px] font-extrabold uppercase tracking-[0.22em] text-muted-foreground">
         STOPWATCH
       </span>
+      {/* Digits scale by the *smaller* of viewport width or container-ish
+          height so a thin focus-mode row can never push 96px digits past
+          the card border. clamp() then guards minimum legibility. */}
       <strong
         aria-live="polite"
-        className="font-mono text-[clamp(32px,5vw,96px)] font-black leading-none tabular-nums tracking-tight"
+        className="font-mono text-[clamp(28px,min(4vw,10vh),88px)] font-black leading-none tabular-nums tracking-tight"
       >
         {formatStopwatch(elapsedMs)}
       </strong>
@@ -53,6 +62,12 @@ export function StopwatchTile({ phase, elapsedMs }: Props) {
       >
         {PHASE_LABEL[phase.kind]}
       </span>
+      {throughput !== undefined && (
+        <span className="mt-0.5 inline-flex items-baseline gap-1.5 text-[11px] font-extrabold uppercase tracking-[0.18em] text-muted-foreground">
+          <span>直近 60s</span>
+          <span className="tabular-nums text-foreground">{throughput}</span>
+        </span>
+      )}
     </section>
   );
 }

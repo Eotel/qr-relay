@@ -131,8 +131,8 @@ export function pickHostHeroView({
 }
 
 /**
- * Dashboard-side aggregates derived from server Metric[]. Pure so the
- * OperatorStrip can render summary chips without subscribing to the full
+ * Dashboard-side aggregates derived from server Metric[]. Pure so a header
+ * chip strip can render summary numbers without subscribing to the full
  * metrics array. `totalScans` is the relay handler's "総スキャン数" total;
  * `tokenHolderCount` is the count of true tokens (only non-zero for token
  * presets — `null` for score presets).
@@ -160,6 +160,10 @@ export type ScanHistoryEntry = { scannerId: string; scannedId: string; ts: numbe
 
 type RelayStateWithHistory = RelayStateShape & {
   history?: unknown;
+};
+
+type RelayStateWithPairCounts = RelayStateShape & {
+  pairCounts?: unknown;
 };
 
 function readHistory(state: unknown): ScanHistoryEntry[] {
@@ -211,6 +215,57 @@ export function rankings(state: unknown, players: PlayerLite[]): Rankings {
 }
 
 /**
+ * For each player, the number of *distinct* partners they have successfully
+ * scanned. Repeat scans of the same target do not inflate the count, so a
+ * player who fires 10 scans at the same person still reads as `1`.
+ *
+ * Derived from `RelayState.pairCounts` (keys shaped `"scannerId>scannedId"`),
+ * so this is scan-out-direction only. Every known player is included with a
+ * count, defaulting to 0 for players with no scan-outs yet.
+ */
+export function encounterCounts(state: unknown, players: PlayerLite[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const p of players) out[p.id] = 0;
+  if (!state || typeof state !== "object") return out;
+  const raw = (state as RelayStateWithPairCounts).pairCounts;
+  if (!raw || typeof raw !== "object") return out;
+  const known = new Set(players.map((p) => p.id));
+  const seen = new Map<string, Set<string>>();
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) continue;
+    const idx = key.indexOf(">");
+    if (idx <= 0 || idx === key.length - 1) continue;
+    const scannerId = key.slice(0, idx);
+    const scannedId = key.slice(idx + 1);
+    if (!known.has(scannerId)) continue;
+    let set = seen.get(scannerId);
+    if (!set) {
+      set = new Set<string>();
+      seen.set(scannerId, set);
+    }
+    set.add(scannedId);
+  }
+  for (const [id, set] of seen) out[id] = set.size;
+  return out;
+}
+
+/**
+ * Count of scans in the most recent `windowMs` window relative to `now`.
+ * Inclusive on both ends; future-dated entries (clock skew) are ignored.
+ * Pure: callers freeze the value during `paused` by capturing the last
+ * running-phase result themselves.
+ */
+export function recentThroughput(state: unknown, now: number, windowMs: number): number {
+  const history = readHistory(state);
+  const cutoff = now - windowMs;
+  let count = 0;
+  for (const h of history) {
+    if (h.ts >= cutoff && h.ts <= now) count += 1;
+  }
+  return count;
+}
+
+/**
  * Scan history in time-ascending order, each entry resolved to player names so
  * the dashboard can render `Alice → Bob` rows without re-joining player data.
  * Unknown player IDs (e.g., disconnected) fall back to a short id stub so the
@@ -223,6 +278,27 @@ export type TokenPathStep = {
   scannedName: string;
   ts: number;
 };
+
+/**
+ * Pick a column/row count so `n` cells fill a container with the given aspect
+ * ratio while staying close to square. Aspect is `width / height`; a wider
+ * container yields more columns. Cells never exceed `n`, so 3 players never
+ * end up in a 5-column row with two empty slots.
+ *
+ * Used by the INFECTION board to avoid wasted whitespace at low player counts,
+ * where fixed Tailwind breakpoints (`lg:grid-cols-5`) would leave 2 players
+ * pinned to the left edge.
+ */
+export type GridShape = { cols: number; rows: number };
+
+export function computeGridShape(n: number, aspect: number): GridShape {
+  if (n <= 1) return { cols: 1, rows: 1 };
+  const safeAspect = Math.max(aspect, 0.1);
+  const ideal = Math.sqrt(n * safeAspect);
+  const cols = Math.min(n, Math.max(1, Math.round(ideal)));
+  const rows = Math.ceil(n / cols);
+  return { cols, rows };
+}
 
 export function tokenPathChain(state: unknown, players: PlayerLite[]): TokenPathStep[] {
   const history = readHistory(state);
