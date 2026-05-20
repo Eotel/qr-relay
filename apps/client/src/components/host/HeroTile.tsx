@@ -32,8 +32,8 @@ export function HeroTile({ view, roomCode }: Props) {
       {view.kind === "waiting" && (
         <>
           <Label>WAITING</Label>
-          <strong className="hero-room-code w-full break-words text-[clamp(64px,11vw,220px)] font-black leading-none tracking-[0.12em]">
-            {roomCode ?? "—"}
+          <strong className="hero-room-code w-full break-words text-[clamp(56px,10vw,200px)] font-black leading-none tracking-[0.08em]">
+            {withSoftBreaks(roomCode ?? "—", 3)}
           </strong>
           <p className="m-0 text-[clamp(20px,2.4vw,40px)] font-bold tabular-nums text-muted-foreground">
             <span className="text-foreground">{view.playerCount}</span>
@@ -97,6 +97,15 @@ export function HeroTile({ view, roomCode }: Props) {
       )}
     </section>
   );
+}
+
+function withSoftBreaks(text: string, every: number): React.ReactNode[] {
+  const out: React.ReactNode[] = [];
+  for (let i = 0; i < text.length; i += every) {
+    if (i > 0) out.push(<wbr key={`wbr-${i}`} />);
+    out.push(text.slice(i, i + every));
+  }
+  return out;
 }
 
 function Label({ children, icon }: { children: React.ReactNode; icon?: React.ReactNode }) {

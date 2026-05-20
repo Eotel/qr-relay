@@ -36,18 +36,18 @@ export function OperatorStrip({
   return (
     <div
       className={cn(
-        "flex h-full min-h-0 items-center gap-2 rounded-[var(--radius-md)] border border-white/10 bg-white/[0.03] px-3",
+        "flex h-full min-h-0 items-center gap-3 rounded-[var(--radius-md)] border border-white/10 bg-white/[0.03] px-4",
       )}
     >
       {actionError && (
         <div
           role="alert"
-          className="mr-2 truncate rounded-[var(--radius-md)] border border-destructive/40 bg-destructive/10 px-2.5 py-1 text-xs font-bold text-destructive"
+          className="mr-2 truncate rounded-[var(--radius-md)] border border-destructive/40 bg-destructive/10 px-3 py-1.5 text-sm font-bold text-destructive"
         >
           {actionError}
         </div>
       )}
-      <div className="ml-auto flex items-center gap-2">
+      <div className="ml-auto flex items-center gap-3">
         <Button
           type="button"
           variant="outline"
@@ -57,11 +57,11 @@ export function OperatorStrip({
           aria-busy={pending === "reset"}
           aria-live="polite"
           className={cn(
-            "h-9 px-3 text-xs",
+            "h-12 gap-2 px-5 text-base font-bold",
             resetArmed && "border-destructive text-destructive hover:bg-destructive/10",
           )}
         >
-          <RefreshCw size={14} />
+          <RefreshCw size={18} />
           <span>
             {pending === "reset" ? "リセット中…" : resetArmed ? "もう一度押して初期化" : "リセット"}
           </span>
@@ -74,9 +74,9 @@ export function OperatorStrip({
           disabled={pending !== null}
           aria-busy={primary.busy}
           aria-live="polite"
-          className="h-9 px-3 text-xs"
+          className="h-12 gap-2 px-6 text-base font-bold"
         >
-          <primary.Icon size={14} />
+          <primary.Icon size={18} />
           <span>{primary.label}</span>
         </Button>
       </div>
