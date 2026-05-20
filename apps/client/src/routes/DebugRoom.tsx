@@ -9,7 +9,7 @@ import { ScanControls } from "../components/debug/ScanControls.js";
 import { StateInspector } from "../components/debug/StateInspector.js";
 import type { AutonomyConfig, AutonomyMode, EventLogItem } from "../components/debug/types.js";
 import {
-  joinRoom,
+  getRoom,
   leaveRoom,
   pauseRoom,
   resetRoom,
@@ -210,7 +210,17 @@ export function DebugRoom() {
     let cancelled = false;
     (async () => {
       try {
-        const snap = await joinRoom(code, observerPidRef.current, "debug-observer", "client");
+        // Observer is a watcher, not a participant. It must NOT join via
+        // HTTP — joining adds it to stored.players, which then makes it
+        // eligible as `players[0]` for `initial.holders === "one"` presets
+        // (baton / infection), and a debug observer ending up holding the
+        // baton is worse than useless (it can't scan to pass it on).
+        // Subscribing to a WS without /join works because the server's WS
+        // handler only requires a pid query param, and broadcasts go to
+        // every open socket regardless of stored.players membership. Scan
+        // attempts from this pid are still rejected by reduceScan
+        // ("unknown player"), so the observer cannot accidentally interact.
+        const snap = await getRoom(code);
         if (cancelled) return;
         useWs.getState().setRoom(snap.room);
         useWs.getState().setSnapshot({
@@ -238,19 +248,17 @@ export function DebugRoom() {
       cancelled = true;
       unsub();
       useWs.getState().disconnect();
-      // Tell the server the observer is gone so it doesn't accumulate
-      // duplicate "debug-observer" rows across reloads / navigations.
-      // Fire-and-forget; the route is unmounting so we can't surface errors.
-      void leaveRoom(code, observerPidRef.current).catch(() => {});
+      // No /leave here — the observer was never /join'd. Closing the WS is
+      // enough; nothing referenced this pid in stored.players.
     };
   }, [code, useWs]);
 
   // Tab close / browser quit: pagehide fires more reliably than beforeunload
   // on mobile. Use sendBeacon when available so the leave reaches the server
-  // even as the page tears down. Covers ALL bots + the observer in one pass.
+  // even as the page tears down. Bots only — observer was never /join'd.
   useEffect(() => {
     const onPageHide = () => {
-      const ids = [observerPidRef.current, ...(poolRef.current?.list().map((b) => b.id) ?? [])];
+      const ids = poolRef.current?.list().map((b) => b.id) ?? [];
       const send = (id: string) => {
         const url = `/api/rooms/${encodeURIComponent(code)}/leave`;
         const body = JSON.stringify({ playerId: id });
