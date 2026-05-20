@@ -37,7 +37,7 @@ export function StopwatchTile({ phase, elapsedMs }: Props) {
       </span>
       <strong
         aria-live="polite"
-        className="font-mono text-[clamp(48px,8vw,140px)] font-black leading-none tabular-nums tracking-tight"
+        className="font-mono text-[clamp(32px,5vw,96px)] font-black leading-none tabular-nums tracking-tight"
       >
         {formatStopwatch(elapsedMs)}
       </strong>

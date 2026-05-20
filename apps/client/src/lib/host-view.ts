@@ -20,7 +20,7 @@ export type HostHeroPlayer = { id: string; name: string };
 export type HostHeroScoreEntry = HostHeroPlayer & { score: number };
 
 export type HostHeroView =
-  | { kind: "waiting" }
+  | { kind: "waiting"; playerCount: number }
   | { kind: "token-single"; holder: HostHeroPlayer | null }
   | {
       kind: "token-many";
@@ -29,7 +29,6 @@ export type HostHeroView =
     }
   | {
       kind: "score-leader";
-      entries: HostHeroScoreEntry[];
       leaders: HostHeroScoreEntry[];
     };
 
@@ -47,7 +46,9 @@ function readRule(rule: unknown): { valueKind: "token" | "score" | null; source:
   const r = rule as RuleShape;
   const valueKindRaw = r.value?.kind;
   const valueKind =
-    valueKindRaw === "token" || valueKindRaw === "score" ? (valueKindRaw as "token" | "score") : null;
+    valueKindRaw === "token" || valueKindRaw === "score"
+      ? (valueKindRaw as "token" | "score")
+      : null;
   const sourceRaw = r.onScan?.source;
   const source = typeof sourceRaw === "string" ? sourceRaw : null;
   return { valueKind, source };
@@ -100,7 +101,7 @@ export function pickHostHeroView({
   rule,
 }: PickHostHeroViewInput): HostHeroView {
   if (phase.kind === "ready" || players.length === 0) {
-    return { kind: "waiting" };
+    return { kind: "waiting", playerCount: players.length };
   }
 
   const { valueKind, source } = readRule(rule);
@@ -121,12 +122,12 @@ export function pickHostHeroView({
     const entries = scoreEntries(values, players);
     const top = entries[0]?.score ?? 0;
     const leaders = top > 0 ? entries.filter((e) => e.score === top) : [];
-    return { kind: "score-leader", entries, leaders };
+    return { kind: "score-leader", leaders };
   }
 
   // Unknown / not-yet-loaded rule: fall back to waiting so the dashboard
   // doesn't flash an empty hero cell while config is in flight.
-  return { kind: "waiting" };
+  return { kind: "waiting", playerCount: players.length };
 }
 
 /**

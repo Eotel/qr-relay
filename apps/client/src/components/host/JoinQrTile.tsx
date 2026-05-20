@@ -4,9 +4,13 @@ import { JoinQrDisplay, joinUrlFor } from "../JoinQrDisplay.js";
 type Props = {
   code: string;
   /**
-   * When `compact`, the tile renders the QR plus the room code in a
-   * dashboard cell sized for play-time. When `featured`, it occupies a
-   * bigger cell (waiting state) with larger glyphs.
+   * `featured` is the waiting layout: a large scannable square with the join
+   * URL below. The room code itself is **not** rendered here — Hero owns it
+   * in waiting so the audience doesn't see two giant copies of the same
+   * string.
+   *
+   * `compact` is the play layout: a small QR for late joiners. Room code
+   * lives in the header chip; this tile is just a scannable square.
    */
   variant: "compact" | "featured";
 };
@@ -24,34 +28,31 @@ export function JoinQrTile({ code, variant }: Props) {
       className={cn(
         "flex h-full min-h-0 flex-col items-center justify-center gap-2 rounded-[var(--radius-lg)]",
         "border border-white/10 bg-white/[0.04] p-3 text-center",
+        variant === "featured" && "p-5",
       )}
     >
       <span
         className={cn(
           "text-[11px] font-extrabold uppercase tracking-[0.22em] text-muted-foreground",
-          variant === "featured" && "text-[13px] tracking-[0.26em]",
+          variant === "featured" && "text-[clamp(14px,1.2vw,22px)] tracking-[0.26em]",
         )}
       >
         JOIN
       </span>
-      <strong
-        className={cn(
-          "font-black leading-none tracking-[0.18em]",
-          variant === "featured" ? "text-[clamp(40px,6vw,96px)]" : "text-[clamp(20px,2.6vw,40px)]",
-        )}
-      >
-        {code}
-      </strong>
       <div
         className={cn(
           "relative flex aspect-square items-center justify-center overflow-hidden rounded-[var(--radius-md)] bg-white",
-          variant === "featured" ? "w-[min(60vmin,520px)]" : "h-[min(100%,180px)] w-auto max-w-full",
+          variant === "featured"
+            ? "h-[min(72%,640px)] w-auto max-w-full"
+            : "h-[min(100%,160px)] w-auto max-w-full",
         )}
       >
         <JoinQrDisplay code={code} />
       </div>
       {variant === "featured" && (
-        <p className="m-0 break-all px-2 text-[12px] font-medium text-muted-foreground">{url}</p>
+        <p className="m-0 break-all px-2 text-[clamp(12px,1.1vw,18px)] font-medium text-muted-foreground">
+          {url}
+        </p>
       )}
     </section>
   );

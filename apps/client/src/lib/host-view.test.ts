@@ -44,19 +44,19 @@ function scoreState(byId: Record<string, number>) {
 }
 
 describe("pickHostHeroView", () => {
-  it("waiting: phase=ready returns waiting regardless of players", () => {
+  it("waiting: phase=ready returns waiting regardless of players (count preserved)", () => {
     const v = pickHostHeroView({
       phase: ready,
       state: tokenState(["alice"]),
       players,
       rule: batonRule,
     });
-    expect(v).toEqual({ kind: "waiting" });
+    expect(v).toEqual({ kind: "waiting", playerCount: 3 });
   });
 
-  it("waiting: no players returns waiting even while running", () => {
+  it("waiting: no players returns waiting with count 0 even while running", () => {
     const v = pickHostHeroView({ phase: running, state: null, players: [], rule: batonRule });
-    expect(v).toEqual({ kind: "waiting" });
+    expect(v).toEqual({ kind: "waiting", playerCount: 0 });
   });
 
   it("baton (token + source=lose): single holder name", () => {
@@ -92,7 +92,7 @@ describe("pickHostHeroView", () => {
     expect(v.totalPlayers).toBe(3);
   });
 
-  it("steal (score): leader ranking, top score wins ties", () => {
+  it("steal (score): top score wins ties", () => {
     const v = pickHostHeroView({
       phase: running,
       state: scoreState({ alice: 12, bob: 12, carol: 4 }),
@@ -101,7 +101,6 @@ describe("pickHostHeroView", () => {
     });
     expect(v.kind).toBe("score-leader");
     if (v.kind !== "score-leader") throw new Error("type");
-    expect(v.entries.map((e) => e.id)).toEqual(["alice", "bob", "carol"]);
     expect(v.leaders.map((e) => e.id)).toEqual(["alice", "bob"]);
   });
 
@@ -115,7 +114,6 @@ describe("pickHostHeroView", () => {
     expect(v.kind).toBe("score-leader");
     if (v.kind !== "score-leader") throw new Error("type");
     expect(v.leaders).toEqual([]);
-    expect(v.entries.every((e) => e.score === 0)).toBe(true);
   });
 
   it("greeting (score): single leader after one scan", () => {
@@ -136,7 +134,7 @@ describe("pickHostHeroView", () => {
 
   it("unknown rule falls back to waiting (no flash of empty hero)", () => {
     const v = pickHostHeroView({ phase: running, state: null, players, rule: undefined });
-    expect(v).toEqual({ kind: "waiting" });
+    expect(v).toEqual({ kind: "waiting", playerCount: 3 });
   });
 });
 

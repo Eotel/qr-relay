@@ -222,8 +222,7 @@ Created: 2026-05-20
 - [x] M3.2 `HostRoom.tsx` を `useMediaQuery('(min-width:768px)')` 分岐に書き換え
   (CSS 表示切替ではなく mount 切替にした — 不要 subscribe を避けるため)
 - [x] M4.1 `RoomLayout` に `md:h-dvh md:overflow-hidden` (role=host のみ)
-- [ ] M4.2 PlayerBoard の自動ダウンスケール
-  (M2 では `grid auto-fill` で代用。50 人超の検証は手動キャプチャ後に判断)
+- [x] M4.2 PlayerBoard の自動ダウンスケール → **不要 (PlayerBoard 自体を撤去、ADR-0005)**
 - [x] M4.3 値変化時の `scale(1.05)` モーション = `.hero-pulse` keyframe +
   React `key` 再マウント駆動 (`prefers-reduced-motion` で global 停止)
 - [ ] M4.4 InactivityOverlay の重なり確認 (手動。実装上は既存 overlay が `<Outlet>`
@@ -257,6 +256,18 @@ Created: 2026-05-20
   非表示側の HostDashboard も `useWs` を 6 つ購読してしまうため、handheld 端末
   でも常に dashboard 用 selector が走る不要コストが発生。`matchMedia` 駆動の
   分岐に切り替えて mount を排他に。テスト副作用も同時に消えた。
+- **(2026-05-20) `max-w-[1200px]` を host で外し忘れていた**: dev サーバ
+  目視で 2000px+ viewport で左右に白マージンが残ることが発覚。`RoomLayout` の
+  `<main>` が handheld と同じ `md:max-w-[1200px]` を継承しており、stage 想定の
+  プロジェクター環境を埋めていなかった。`role === "host"` のとき
+  `md:max-w-none md:px-6` に置き換えて修正。`md` 未満 (host が iPad/スマホで
+  起動した緊急時) は handheld と同じ 720px キャップのまま。
+- **(2026-05-20) PlayerBoard を主役 tile にする ADR-0004 §Decision 4 を撤回**:
+  目視確認で「6m 先から名前 + 値を 1 秒で探せる」要件が grid セルの物理サイズ
+  制約上達成不可能と判明 (20 人入ると名前 16px に圧縮)。さらに会場 = 物理的に
+  同席する前提では「自分が join できたか」は room code + 人数で必要十分。
+  PlayerBoardTile を削除、grid を waiting/play の 2 種に縮約、「人数」を
+  header chip + waiting hero subtitle の 2 箇所に再配置。詳細は ADR-0005。
 
 ## Decision Log
 

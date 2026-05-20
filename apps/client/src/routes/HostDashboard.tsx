@@ -2,14 +2,10 @@ import { useEffect, useState } from "react";
 import { HeroTile } from "../components/host/HeroTile.js";
 import { JoinQrTile } from "../components/host/JoinQrTile.js";
 import { LastScanTicker } from "../components/host/LastScanTicker.js";
-import {
-  type OperatorPending,
-  OperatorStrip,
-} from "../components/host/OperatorStrip.js";
-import { PlayerBoardTile } from "../components/host/PlayerBoardTile.js";
+import { type OperatorPending, OperatorStrip } from "../components/host/OperatorStrip.js";
 import { StopwatchTile } from "../components/host/StopwatchTile.js";
 import { pauseRoom, resetRoom, resumeRoom, startRoom } from "../lib/api.js";
-import { type HostHeroView, pickHostHeroView } from "../lib/host-view.js";
+import { pickHostHeroView } from "../lib/host-view.js";
 import { displayMs } from "../lib/ws-store.js";
 import { useWs } from "../lib/ws.js";
 
@@ -18,10 +14,17 @@ const RESET_CONFIRM_TIMEOUT_MS = 4000;
 type Props = { code: string };
 
 /**
- * Stage register dashboard. Wraps the six tile components in a CSS grid
- * whose `grid-template-areas` swaps per HostHeroView so each preset's
- * dominant signal gets the most real estate (baton = giant holder name,
- * infection = X / N + roster, score = full ranking + leader badge).
+ * Stage register dashboard. Five tiles in a CSS grid: hero (preset-aware
+ * dominant cell), ticker (last scan), stopwatch, QR, and the operator strip
+ * at the bottom edge.
+ *
+ * Two layouts, picked by hero view kind: `waiting` (hero + featured QR side
+ * by side, ticker/clock collapsed) and `play` (hero spans full width, with
+ * ticker/clock/qr-compact in a thin bottom band). ADR-0005 supersedes
+ * ADR-0004 §Decision 4 — the per-player roster grid was dropped because
+ * playing the audience is physically too far to read 6m+ name cards, and
+ * the room code + player-count chip already covers the "did I join?"
+ * reassurance need.
  *
  * Owns all live store subscriptions, the stopwatch tick driver, and the
  * host-side action callbacks. Tiles below are pure props in / DOM out.
@@ -59,7 +62,7 @@ export function HostDashboard({ code }: Props) {
     players,
     rule: room?.handlerConfig,
   });
-  const layoutKind = view.kind;
+  const layoutKind: LayoutKind = view.kind === "waiting" ? "waiting" : "play";
 
   const run = async (kind: Exclude<OperatorPending, null>, action: () => Promise<void>) => {
     if (pending) return;
@@ -96,9 +99,6 @@ export function HostDashboard({ code }: Props) {
       <div style={areaStyle("hero")} className="min-h-0">
         <HeroTile view={view} roomCode={code} />
       </div>
-      <div style={areaStyle("board")} className="min-h-0">
-        <PlayerBoardTile view={view} players={players} />
-      </div>
       <div style={areaStyle("ticker")} className="min-h-0">
         <LastScanTicker event={lastScanEvent} players={players} />
       </div>
@@ -133,74 +133,44 @@ function areaStyle(name: string): React.CSSProperties {
   return { gridArea: name };
 }
 
+type LayoutKind = "waiting" | "play";
+
 /**
- * Per-view-kind grid templates. Each is 12 cols × 10 rows, sized to the
- * dashboard's `100dvh`-bounded flex container so no tile gets internal
- * scroll. Row heights are equal fractions; column widths bias toward the
- * dominant tile of each preset.
+ * Two grid templates only — `waiting` (QR is featured, hero shows room code +
+ * 人数) and `play` (hero spans full width, supporting tiles in a thin band
+ * along the bottom). Both are 12 cols × 10 rows, sized to the dashboard's
+ * `h-dvh`-bounded flex container so no tile gets internal scroll.
  */
-const layoutStyles: Record<HostHeroView["kind"], React.CSSProperties> = {
-  "token-single": {
-    gridTemplateColumns: "repeat(12, minmax(0, 1fr))",
-    gridTemplateRows: "repeat(10, minmax(0, 1fr))",
-    gridTemplateAreas: `
-      "hero hero hero hero hero hero hero hero board board board board"
-      "hero hero hero hero hero hero hero hero board board board board"
-      "hero hero hero hero hero hero hero hero board board board board"
-      "hero hero hero hero hero hero hero hero board board board board"
-      "hero hero hero hero hero hero hero hero board board board board"
-      "hero hero hero hero hero hero hero hero board board board board"
-      "ticker ticker ticker ticker ticker ticker ticker ticker board board board board"
-      "clock clock clock clock qr qr qr qr board board board board"
-      "clock clock clock clock qr qr qr qr board board board board"
-      "op op op op op op op op op op op op"
-    `,
-  },
-  "token-many": {
-    gridTemplateColumns: "repeat(12, minmax(0, 1fr))",
-    gridTemplateRows: "repeat(10, minmax(0, 1fr))",
-    gridTemplateAreas: `
-      "hero hero hero hero hero hero board board board board board board"
-      "hero hero hero hero hero hero board board board board board board"
-      "hero hero hero hero hero hero board board board board board board"
-      "hero hero hero hero hero hero board board board board board board"
-      "hero hero hero hero hero hero board board board board board board"
-      "hero hero hero hero hero hero board board board board board board"
-      "ticker ticker ticker ticker ticker ticker ticker ticker ticker ticker ticker ticker"
-      "clock clock clock qr qr qr board board board board board board"
-      "clock clock clock qr qr qr board board board board board board"
-      "op op op op op op op op op op op op"
-    `,
-  },
-  "score-leader": {
-    gridTemplateColumns: "repeat(12, minmax(0, 1fr))",
-    gridTemplateRows: "repeat(10, minmax(0, 1fr))",
-    gridTemplateAreas: `
-      "board board board board board board board board hero hero hero hero"
-      "board board board board board board board board hero hero hero hero"
-      "board board board board board board board board hero hero hero hero"
-      "board board board board board board board board hero hero hero hero"
-      "board board board board board board board board clock clock clock clock"
-      "board board board board board board board board clock clock clock clock"
-      "board board board board board board board board qr qr qr qr"
-      "board board board board board board board board qr qr qr qr"
-      "ticker ticker ticker ticker ticker ticker ticker ticker qr qr qr qr"
-      "op op op op op op op op op op op op"
-    `,
-  },
+const layoutStyles: Record<LayoutKind, React.CSSProperties> = {
   waiting: {
     gridTemplateColumns: "repeat(12, minmax(0, 1fr))",
     gridTemplateRows: "repeat(10, minmax(0, 1fr))",
     gridTemplateAreas: `
-      "hero hero hero hero qr qr qr qr qr qr qr qr"
-      "hero hero hero hero qr qr qr qr qr qr qr qr"
-      "hero hero hero hero qr qr qr qr qr qr qr qr"
-      "hero hero hero hero qr qr qr qr qr qr qr qr"
-      "hero hero hero hero qr qr qr qr qr qr qr qr"
-      "hero hero hero hero qr qr qr qr qr qr qr qr"
-      "board board board board qr qr qr qr qr qr qr qr"
-      "board board board board qr qr qr qr qr qr qr qr"
-      "clock clock clock clock ticker ticker ticker ticker ticker ticker ticker ticker"
+      "hero hero hero hero hero hero qr qr qr qr qr qr"
+      "hero hero hero hero hero hero qr qr qr qr qr qr"
+      "hero hero hero hero hero hero qr qr qr qr qr qr"
+      "hero hero hero hero hero hero qr qr qr qr qr qr"
+      "hero hero hero hero hero hero qr qr qr qr qr qr"
+      "hero hero hero hero hero hero qr qr qr qr qr qr"
+      "hero hero hero hero hero hero qr qr qr qr qr qr"
+      "ticker ticker ticker clock clock clock qr qr qr qr qr qr"
+      "ticker ticker ticker clock clock clock qr qr qr qr qr qr"
+      "op op op op op op op op op op op op"
+    `,
+  },
+  play: {
+    gridTemplateColumns: "repeat(12, minmax(0, 1fr))",
+    gridTemplateRows: "repeat(10, minmax(0, 1fr))",
+    gridTemplateAreas: `
+      "hero hero hero hero hero hero hero hero hero hero hero hero"
+      "hero hero hero hero hero hero hero hero hero hero hero hero"
+      "hero hero hero hero hero hero hero hero hero hero hero hero"
+      "hero hero hero hero hero hero hero hero hero hero hero hero"
+      "hero hero hero hero hero hero hero hero hero hero hero hero"
+      "hero hero hero hero hero hero hero hero hero hero hero hero"
+      "hero hero hero hero hero hero hero hero hero hero hero hero"
+      "ticker ticker ticker ticker ticker ticker clock clock clock clock qr qr"
+      "ticker ticker ticker ticker ticker ticker clock clock clock clock qr qr"
       "op op op op op op op op op op op op"
     `,
   },
