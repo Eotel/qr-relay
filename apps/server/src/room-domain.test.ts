@@ -9,6 +9,7 @@ import {
   gcNonces,
   reduceInit,
   reduceJoin,
+  reduceLeave,
   reducePause,
   reduceReset,
   reduceResume,
@@ -130,6 +131,111 @@ describe("reduceJoin", () => {
     let stored = reduceJoin(init.stored, { playerId: "h1", name: "Host", role: "host" }, NOW);
     stored = reduceJoin(stored, { playerId: "h2", name: "Host2", role: "host" }, NOW + 1);
     expect(stored.meta.hostId).toBe("h1");
+  });
+
+  it("途中参加: state が初期化済みなら handler.onPlayerJoin でスロットを足す", () => {
+    // initial.holders=all なので、途中参加者にも初期 amount を与える設定
+    const init = reduceInit(
+      { code: "A", handlerId: "relay", handlerConfig: TALLY_CONFIG },
+      NOW - 100,
+    );
+    if (init.kind !== "ok") throw new Error();
+    let stored = reduceJoin(
+      init.stored,
+      { playerId: "p1", name: "A", role: "client" },
+      NOW - 50,
+    );
+    const started = reduceStart(stored, NOW - 10);
+    if (started.kind !== "ok") throw new Error("expected start ok");
+    stored = started.stored;
+
+    stored = reduceJoin(stored, { playerId: "p2", name: "B", role: "client" }, NOW);
+
+    expect(stored.players.map((p) => p.id)).toEqual(["p1", "p2"]);
+    const state = stored.state as { values: Record<string, { kind: string; amount?: number }> };
+    expect(state.values.p2).toBeDefined();
+    expect(state.values.p2?.kind).toBe("score");
+  });
+
+  it("途中参加: state が未初期化 (ready) のときは state を触らない", () => {
+    const init = reduceInit(
+      { code: "A", handlerId: "relay", handlerConfig: TALLY_CONFIG },
+      NOW - 1,
+    );
+    if (init.kind !== "ok") throw new Error();
+    const next = reduceJoin(init.stored, { playerId: "p1", name: "A", role: "client" }, NOW);
+    expect(next.state).toBeUndefined();
+  });
+
+  it("再 join (同一 playerId) は state.values を触らない", () => {
+    const init = reduceInit(
+      { code: "A", handlerId: "relay", handlerConfig: TALLY_CONFIG },
+      NOW - 100,
+    );
+    if (init.kind !== "ok") throw new Error();
+    let stored = reduceJoin(
+      init.stored,
+      { playerId: "p1", name: "A", role: "client" },
+      NOW - 50,
+    );
+    const started = reduceStart(stored, NOW - 10);
+    if (started.kind !== "ok") throw new Error();
+    stored = started.stored;
+    const before = (stored.state as { values: Record<string, unknown> }).values;
+    stored = reduceJoin(stored, { playerId: "p1", name: "A-renamed", role: "client" }, NOW);
+    const after = (stored.state as { values: Record<string, unknown> }).values;
+    expect(after).toBe(before);
+    expect(stored.players[0]?.name).toBe("A-renamed");
+  });
+});
+
+describe("reduceLeave", () => {
+  it("既知 player を players から外す + state.values からもスロットを落とす", () => {
+    const stored = makeStored(["p1", "p2", "p3"]);
+    const next = reduceLeave(stored, { playerId: "p2" }, NOW);
+    expect(next.players.map((p) => p.id)).toEqual(["p1", "p3"]);
+    const values = (next.state as { values: Record<string, unknown> }).values;
+    expect(values.p2).toBeUndefined();
+    expect(values.p1).toBeDefined();
+    expect(values.p3).toBeDefined();
+  });
+
+  it("未参加 ID は no-op（players も state も変わらず lastActivityAt のみ更新）", () => {
+    const stored = makeStored(["p1", "p2"]);
+    const next = reduceLeave(stored, { playerId: "unknown" }, NOW);
+    expect(next.players).toBe(stored.players);
+    expect(next.state).toBe(stored.state);
+    expect(next.meta.lastActivityAt).toBe(NOW);
+  });
+
+  it("host が抜けたら hostId を null に戻す", () => {
+    const init = reduceInit(
+      { code: "A", handlerId: "relay", handlerConfig: TALLY_CONFIG },
+      NOW - 10,
+    );
+    if (init.kind !== "ok") throw new Error();
+    const hosted = reduceJoin(
+      init.stored,
+      { playerId: "host1", name: "H", role: "host" },
+      NOW - 5,
+    );
+    expect(hosted.meta.hostId).toBe("host1");
+    const left = reduceLeave(hosted, { playerId: "host1" }, NOW);
+    expect(left.meta.hostId).toBeNull();
+  });
+
+  it("ready phase (state 未初期化) でも players からだけ外す", () => {
+    const init = reduceInit(
+      { code: "A", handlerId: "relay", handlerConfig: TALLY_CONFIG },
+      NOW - 10,
+    );
+    if (init.kind !== "ok") throw new Error();
+    let stored = reduceJoin(init.stored, { playerId: "p1", name: "A", role: "client" }, NOW - 5);
+    stored = reduceJoin(stored, { playerId: "p2", name: "B", role: "client" }, NOW - 4);
+    expect(stored.state).toBeUndefined();
+    const next = reduceLeave(stored, { playerId: "p1" }, NOW);
+    expect(next.players.map((p) => p.id)).toEqual(["p2"]);
+    expect(next.state).toBeUndefined();
   });
 });
 
@@ -271,6 +377,110 @@ describe("gcNonces", () => {
     const m = new Map([["a", 50]]);
     gcNonces(m, 100);
     expect(m.has("a")).toBe(true);
+  });
+});
+
+describe("reduceScan self-heal (legacy / mid-game join)", () => {
+  // Regression: previously, a player whose entry was in stored.players but
+  // missing from stored.state.values silently no-op'd every scan.
+  // This happened in two real flows:
+  //   (a) a room created before onPlayerJoin shipped (legacy state),
+  //   (b) a bot joined after `start` and reduceJoin's onPlayerJoin pass
+  //       didn't fire because of an `isNewPlayer` guard regression.
+  // Both manifested as "全員 未参加 / 0" on the dashboard with no errors.
+  function storedWithOrphanedPlayer(): Stored {
+    // Build a stored where p1 is in players AND has a value slot, but p2 is
+    // in players but has NO value slot. Mirrors the "mid-game join without
+    // onPlayerJoin" state.
+    const init = reduceInit(
+      { code: "A", handlerId: "relay", handlerConfig: TALLY_CONFIG },
+      NOW - 100,
+    );
+    if (init.kind !== "ok") throw new Error("init failed");
+    let stored = reduceJoin(
+      init.stored,
+      { playerId: "p1", name: "A", role: "client" },
+      NOW - 50,
+    );
+    const started = reduceStart(stored, NOW - 10);
+    if (started.kind !== "ok") throw new Error("start failed");
+    stored = started.stored;
+    // Append p2 directly so we simulate "in players, no slot". Do not go
+    // through reduceJoin — that would call onPlayerJoin and heal it.
+    stored = {
+      ...stored,
+      players: [...stored.players, { id: "p2", name: "B", joinedAt: NOW - 5 }],
+    };
+    // Confirm the orphan state we're testing against.
+    const values = (stored.state as { values: Record<string, unknown> }).values;
+    if ("p2" in values) throw new Error("fixture invariant: p2 should have no slot");
+    return stored;
+  }
+
+  it("scanner / scanned のスロットが state に無くても scan が成立する (self-heal)", () => {
+    const stored = storedWithOrphanedPlayer();
+    const r = reduceScan({
+      stored,
+      scannerId: "p2", // orphaned scanner
+      payload: payload({ pid: "p1", nonce: "heal-n1" }),
+      recentNonces: new Map(),
+      now: NOW,
+    });
+    expect(r.kind).toBe("ok");
+    if (r.kind !== "ok") return;
+    const nextValues = (r.stored.state as { values: Record<string, unknown> }).values;
+    expect(nextValues.p2).toBeDefined();
+    // greeting-shaped config (TALLY_CONFIG: sink: increment, source: keep):
+    // scanner p2 should have gained 1.
+    const slot = nextValues.p2 as { kind: string; amount?: number };
+    expect(slot.kind).toBe("score");
+    expect(slot.amount).toBe(1);
+  });
+
+  it("scanned 側のスロットが無くても scan が成立する", () => {
+    const stored = storedWithOrphanedPlayer();
+    const r = reduceScan({
+      stored,
+      scannerId: "p1",
+      payload: payload({ pid: "p2", nonce: "heal-n2" }), // orphaned scanned
+      recentNonces: new Map(),
+      now: NOW,
+    });
+    expect(r.kind).toBe("ok");
+    if (r.kind !== "ok") return;
+    const nextValues = (r.stored.state as { values: Record<string, unknown> }).values;
+    expect(nextValues.p2).toBeDefined();
+  });
+
+  it("両端 orphan でも scan が成立し、両者のスロットが生える", () => {
+    // Build a stored where BOTH players are orphans from state.
+    const init = reduceInit(
+      { code: "A", handlerId: "relay", handlerConfig: TALLY_CONFIG },
+      NOW - 100,
+    );
+    if (init.kind !== "ok") throw new Error();
+    // Start with no players so initialState produces empty values.
+    const started = reduceStart(init.stored, NOW - 10);
+    if (started.kind !== "ok") throw new Error();
+    const stored: Stored = {
+      ...started.stored,
+      players: [
+        { id: "p1", name: "A", joinedAt: NOW - 5 },
+        { id: "p2", name: "B", joinedAt: NOW - 5 },
+      ],
+    };
+    const r = reduceScan({
+      stored,
+      scannerId: "p1",
+      payload: payload({ pid: "p2", nonce: "heal-n3" }),
+      recentNonces: new Map(),
+      now: NOW,
+    });
+    expect(r.kind).toBe("ok");
+    if (r.kind !== "ok") return;
+    const nextValues = (r.stored.state as { values: Record<string, unknown> }).values;
+    expect(nextValues.p1).toBeDefined();
+    expect(nextValues.p2).toBeDefined();
   });
 });
 
@@ -586,5 +796,92 @@ describe("decideAlarmAction", () => {
     expect(d2.kind).toBe("warn");
     const d3 = decideAlarmAction(NOW, NOW + 60_000, 30_000, 60_000);
     expect(d3).toEqual({ kind: "close" });
+  });
+});
+
+describe("end-to-end: mid-game join + scan (regression for 'still 未参加 after fix')", () => {
+  // This is the scenario the user actually hit:
+  // 1. Room created, observer + 1 bot join.
+  // 2. /start fires — initialState builds slots only for current 2 players.
+  // 3. More bots join AFTER start (the late-joiner pattern).
+  // 4. A late-joining bot scans someone.
+  // Expected: scan counts.
+  // Pre-fix bug: silent no-op because the late joiner had no state.values slot.
+  it("late joiner scans after start → scan is counted (no silent no-op)", () => {
+    const init = reduceInit(
+      { code: "ABC", handlerId: "relay", handlerConfig: TALLY_CONFIG },
+      NOW - 200,
+    );
+    if (init.kind !== "ok") throw new Error();
+    let stored = reduceJoin(
+      init.stored,
+      { playerId: "observer", name: "obs", role: "client" },
+      NOW - 150,
+    );
+    stored = reduceJoin(
+      stored,
+      { playerId: "bot-a", name: "Bot A", role: "client" },
+      NOW - 140,
+    );
+    const started = reduceStart(stored, NOW - 100);
+    if (started.kind !== "ok") throw new Error();
+    stored = started.stored;
+
+    // Late joiner — appears AFTER start.
+    stored = reduceJoin(
+      stored,
+      { playerId: "bot-late", name: "Bot Late", role: "client" },
+      NOW - 50,
+    );
+
+    const r = reduceScan({
+      stored,
+      scannerId: "bot-late",
+      payload: payload({ pid: "bot-a", nonce: "late-n1" }),
+      recentNonces: new Map(),
+      now: NOW,
+    });
+    expect(r.kind).toBe("ok");
+    if (r.kind !== "ok") return;
+    const scanned = (r.stored.state as { scanCounts: Record<string, number> }).scanCounts;
+    expect(scanned["bot-late"]).toBe(1);
+  });
+
+  it("legacy stored (player in players but missing from values) → next scan self-heals + counts", () => {
+    // Simulate a room snapshot from BEFORE the onPlayerJoin hook shipped.
+    // The DO persisted stored.players includes a player not yet in
+    // state.values.
+    const init = reduceInit(
+      { code: "ABC", handlerId: "relay", handlerConfig: TALLY_CONFIG },
+      NOW - 200,
+    );
+    if (init.kind !== "ok") throw new Error();
+    let stored = reduceJoin(
+      init.stored,
+      { playerId: "p1", name: "A", role: "client" },
+      NOW - 150,
+    );
+    const started = reduceStart(stored, NOW - 100);
+    if (started.kind !== "ok") throw new Error();
+    stored = {
+      ...started.stored,
+      // Append a legacy entry directly without going through reduceJoin.
+      players: [
+        ...started.stored.players,
+        { id: "p-legacy", name: "Legacy", joinedAt: NOW - 90 },
+      ],
+    };
+
+    const r = reduceScan({
+      stored,
+      scannerId: "p-legacy",
+      payload: payload({ pid: "p1", nonce: "legacy-n1" }),
+      recentNonces: new Map(),
+      now: NOW,
+    });
+    expect(r.kind).toBe("ok");
+    if (r.kind !== "ok") return;
+    const scanned = (r.stored.state as { scanCounts: Record<string, number> }).scanCounts;
+    expect(scanned["p-legacy"]).toBe(1);
   });
 });

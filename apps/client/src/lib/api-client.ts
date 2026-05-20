@@ -29,6 +29,7 @@ export type ApiClient = {
   createRoom: (handlerId: string, handlerConfig: unknown) => Promise<string>;
   getRoom: (code: string) => Promise<RoomSnapshot>;
   joinRoom: (code: string, playerId: string, name: string, role: JoinRole) => Promise<RoomSnapshot>;
+  leaveRoom: (code: string, playerId: string) => Promise<void>;
   startRoom: (code: string) => Promise<void>;
   pauseRoom: (code: string) => Promise<void>;
   resumeRoom: (code: string) => Promise<void>;
@@ -79,6 +80,15 @@ export function createApiClient(fetchImpl: FetchLike): ApiClient {
       const stateRes = await fetchImpl(`/api/rooms/${encoded}`);
       if (!stateRes.ok) throw new Error(`state failed: ${stateRes.status}`);
       return (await stateRes.json()) as RoomSnapshot;
+    },
+
+    async leaveRoom(code, playerId) {
+      const res = await fetchImpl(`/api/rooms/${encodeURIComponent(code)}/leave`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playerId }),
+      });
+      if (!res.ok) throw new Error(`leave failed: ${res.status}`);
     },
 
     async startRoom(code) {

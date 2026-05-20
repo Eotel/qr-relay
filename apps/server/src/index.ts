@@ -83,6 +83,24 @@ app.post("/api/rooms/:code/join", async (c) => {
   });
 });
 
+app.post("/api/rooms/:code/leave", async (c) => {
+  const code = normalizeRoomCode(c.req.param("code"));
+  const body = (await c.req.json().catch(() => null)) as { playerId?: unknown } | null;
+  const playerId = typeof body?.playerId === "string" ? body.playerId : null;
+  if (!playerId) return c.json({ error: "playerId required" }, 400);
+  const id = c.env.ROOM.idFromName(`room:${code}`);
+  const stub = c.env.ROOM.get(id);
+  const res = await stub.fetch("https://ro/leave", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ playerId }),
+  });
+  return new Response(await res.text(), {
+    status: res.status,
+    headers: { "Content-Type": "application/json" },
+  });
+});
+
 app.get("/api/rooms/:code", async (c) => {
   const code = normalizeRoomCode(c.req.param("code"));
   const id = c.env.ROOM.idFromName(`room:${code}`);

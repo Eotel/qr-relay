@@ -17,6 +17,7 @@ import {
   decideAlarmAction,
   reduceInit,
   reduceJoin,
+  reduceLeave,
   reducePause,
   reduceReset,
   reduceResume,
@@ -79,6 +80,7 @@ export class RoomDurableObject implements DurableObject {
     }
     if (url.pathname === "/init" && request.method === "POST") return this.handleInit(request);
     if (url.pathname === "/join" && request.method === "POST") return this.handleJoin(request);
+    if (url.pathname === "/leave" && request.method === "POST") return this.handleLeave(request);
     if (url.pathname === "/state" && request.method === "GET") return this.handleGetState();
     if (url.pathname === "/start" && request.method === "POST")
       return this.handlePhaseRest("start");
@@ -206,6 +208,43 @@ export class RoomDurableObject implements DurableObject {
     const next = reduceJoin(stored, parsed.data, this.clock.now());
     await this.saveStored(next);
     await this.onActivity(next.meta.lastActivityAt);
+    this.broadcast({ t: "players", players: next.players });
+    return json({ ok: true, room: next.meta, players: next.players });
+  }
+
+  private async handleLeave(request: Request): Promise<Response> {
+    const raw = (await request.json().catch(() => null)) as { playerId?: unknown } | null;
+    const playerId = typeof raw?.playerId === "string" ? raw.playerId : null;
+    if (!playerId) return json({ error: "playerId required" }, 400);
+    const stored = await this.loadStored();
+    if (!stored) return json({ error: "room not initialized" }, 404);
+    const next = reduceLeave(stored, { playerId }, this.clock.now());
+    await this.saveStored(next);
+    await this.onActivity(next.meta.lastActivityAt);
+
+    // Close any open WebSocket(s) tagged for this playerId so the bot tab
+    // sees its connection drop instead of staying stale OPEN.
+    for (const ws of this.state.getWebSockets()) {
+      const tags = this.state.getTags(ws);
+      if (tags[0] === playerId) {
+        try {
+          ws.close(1000, "left");
+        } catch {
+          // ignore
+        }
+      }
+    }
+
+    // Broadcast both the updated state (so handler metrics refresh) and the
+    // new players list (so the dashboard count goes back down).
+    const { state, metrics } = computeStateAndMetrics(next, this.clock.now());
+    this.broadcast({
+      t: "state",
+      state,
+      metrics,
+      players: next.players,
+      phase: next.meta.phase,
+    });
     this.broadcast({ t: "players", players: next.players });
     return json({ ok: true, room: next.meta, players: next.players });
   }

@@ -103,6 +103,45 @@ export const relayHandler: ScanHandler<ScanRule, RelayState, unknown> = {
     };
   },
 
+  /**
+   * Mid-game join: materialize a slot for the new player so they can scan and
+   * be scanned right away. Treat the new player as a holder iff the rule's
+   * `initial.holders` is "all" — i.e., the rule says "everyone starts with
+   * the value". For "one" / "none" / pre-listed sets, late joiners always
+   * start without the value (the existing holders keep theirs).
+   *
+   * Existing slot is preserved (rejoin / rename leaves state untouched).
+   */
+  onPlayerJoin({ state, config, player }) {
+    if (state.values[player.id]) return state;
+    const rule = config;
+    const isLateHolder = rule.initial.holders === "all";
+    const fakeHolders = new Set<string>(isLateHolder ? [player.id] : []);
+    const slot = makeSlot(rule, fakeHolders, player.id);
+    return {
+      ...state,
+      values: { ...state.values, [player.id]: slot },
+    };
+  },
+
+  /**
+   * Player leave hook: drop their slot, scan counts, and pair counts so
+   * metrics no longer surface stale rows. History entries are kept so the
+   * token-path / ranking views can still attribute past scans.
+   */
+  onPlayerLeave({ state, player }) {
+    if (!state.values[player.id]) return state;
+    const { [player.id]: _removed, ...values } = state.values;
+    const { [player.id]: _count, ...scanCounts } = state.scanCounts;
+    const pairCounts: Record<string, number> = {};
+    for (const [k, v] of Object.entries(state.pairCounts)) {
+      const [a, b] = k.split(">");
+      if (a === player.id || b === player.id) continue;
+      pairCounts[k] = v;
+    }
+    return { ...state, values, scanCounts, pairCounts };
+  },
+
   payloadFor() {
     // relay 単体では現状 QR には何も特別な data は不要 (識別子のみで十分)
     return {};

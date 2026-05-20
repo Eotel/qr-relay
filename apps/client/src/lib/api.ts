@@ -36,6 +36,10 @@ export function joinRoom(code: string, playerId: string, name: string, role: Joi
   return activeClient.joinRoom(code, playerId, name, role);
 }
 
+export function leaveRoom(code: string, playerId: string) {
+  return activeClient.leaveRoom(code, playerId);
+}
+
 export function startRoom(code: string) {
   return activeClient.startRoom(code);
 }

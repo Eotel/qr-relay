@@ -135,7 +135,65 @@ export function reduceJoin(stored: Stored, input: JoinInput, now: number): Store
     const idx = players.indexOf(existing);
     players[idx] = { ...existing, name: input.name };
   }
-  return touchActivity({ ...stored, players }, now);
+
+  // Mid-game join AND self-heal: whenever state is initialized, ask the
+  // handler to materialize a slot for this player. The handler is responsible
+  // for being idempotent — relay.onPlayerJoin returns the same state if the
+  // slot already exists. This also self-heals rooms whose stored.players
+  // already contains entries that pre-date the onPlayerJoin hook (e.g. a
+  // room created before the fix shipped). Without this, those legacy entries
+  // stay forever as 未参加 because they're not "new" by the `existing` check.
+  let nextState = stored.state;
+  if (stored.state !== undefined && stored.state !== null) {
+    const handler = requireHandler(stored.meta.handlerId);
+    if (handler.onPlayerJoin) {
+      nextState = handler.onPlayerJoin({
+        state: stored.state,
+        config: stored.meta.handlerConfig,
+        player: { id: input.playerId, name: input.name, joinedAt: now },
+        now,
+      });
+    }
+  }
+
+  return touchActivity({ ...stored, players, state: nextState }, now);
+}
+
+export type LeaveInput = { playerId: string };
+
+/**
+ * Remove a player from `stored.players` and let the handler clean up its
+ * internal state slot (so metrics stop showing stale rows). If the leaving
+ * player was the host, `hostId` is cleared. Unknown player → no-op (still
+ * stamps activity so the caller's "leave" is idempotent and survives retry).
+ */
+export function reduceLeave(stored: Stored, input: LeaveInput, now: number): Stored {
+  const idx = stored.players.findIndex((p) => p.id === input.playerId);
+  const isHost = stored.meta.hostId === input.playerId;
+
+  const players =
+    idx === -1
+      ? stored.players
+      : [...stored.players.slice(0, idx), ...stored.players.slice(idx + 1)];
+
+  let nextState = stored.state;
+  if (idx !== -1 && stored.state !== undefined && stored.state !== null) {
+    const handler = requireHandler(stored.meta.handlerId);
+    if (handler.onPlayerLeave) {
+      const leaving = stored.players[idx];
+      if (leaving) {
+        nextState = handler.onPlayerLeave({
+          state: stored.state,
+          config: stored.meta.handlerConfig,
+          player: leaving,
+          now,
+        });
+      }
+    }
+  }
+
+  const meta: RoomMeta = isHost ? { ...stored.meta, hostId: null } : stored.meta;
+  return touchActivity({ ...stored, meta, players, state: nextState }, now);
 }
 
 export type PhaseResult =
@@ -356,7 +414,7 @@ export function reduceScan(input: ScanInput): ScanResult {
     return { kind: "error", message: "invalid payload data", recentNonces: nextNonces };
   }
 
-  const initialState =
+  let workingState =
     stored.state ??
     handler.initialState({
       config: stored.meta.handlerConfig,
@@ -364,8 +422,30 @@ export function reduceScan(input: ScanInput): ScanResult {
       now,
     });
 
+  // Self-heal: if either party in this scan has no handler-side slot, ask
+  // the handler to materialize one. This covers (a) rooms whose stored.state
+  // pre-dates the onPlayerJoin hook and (b) any race where a player landed
+  // in stored.players but the join's onPlayerJoin pass didn't reach state.
+  // Handlers are required to be idempotent here — relay.onPlayerJoin is.
+  // Without this, scans involving such players were silent no-ops with no
+  // metric movement and no error.
+  if (handler.onPlayerJoin) {
+    workingState = handler.onPlayerJoin({
+      state: workingState,
+      config: stored.meta.handlerConfig,
+      player: scanner,
+      now,
+    });
+    workingState = handler.onPlayerJoin({
+      state: workingState,
+      config: stored.meta.handlerConfig,
+      player: scanned,
+      now,
+    });
+  }
+
   const result = handler.onScan({
-    state: initialState,
+    state: workingState,
     config: stored.meta.handlerConfig,
     scanner,
     scanned,

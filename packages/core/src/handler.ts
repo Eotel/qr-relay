@@ -40,6 +40,20 @@ export type HandlerOverArgs<TConfig, TState> = {
   now: number;
 };
 
+export type HandlerPlayerJoinArgs<TConfig, TState> = {
+  state: TState;
+  config: TConfig;
+  player: Player;
+  now: number;
+};
+
+export type HandlerPlayerLeaveArgs<TConfig, TState> = {
+  state: TState;
+  config: TConfig;
+  player: Player;
+  now: number;
+};
+
 export interface ScanHandler<TConfig = unknown, TState = unknown, TData = unknown> {
   readonly id: string;
   readonly name: string;
@@ -48,6 +62,23 @@ export interface ScanHandler<TConfig = unknown, TState = unknown, TData = unknow
   readonly dataSchema: ZodType<TData, ZodTypeDef, unknown>;
 
   initialState(args: HandlerInitArgs<TConfig>): TState;
+
+  /**
+   * Mid-game join hook. Called by reduceJoin when a new player joins after
+   * initialState has already produced a state (i.e. the game has been
+   * started). Handlers materialize the new player's slot here so late
+   * joiners can scan and be scanned immediately. If omitted, the state is
+   * left unchanged (late-joiner support is opt-in per handler).
+   */
+  onPlayerJoin?(args: HandlerPlayerJoinArgs<TConfig, TState>): TState;
+
+  /**
+   * Player removal hook. Called by reduceLeave so handlers can drop the
+   * player's slot from internal state. If omitted, the state is left
+   * unchanged (metrics will derive from the new `players` list and any
+   * orphan slot is silently ignored).
+   */
+  onPlayerLeave?(args: HandlerPlayerLeaveArgs<TConfig, TState>): TState;
 
   /** スキャン時に被スキャナ側 (= 表示している QR) が載せるべきデータを返す */
   payloadFor(args: HandlerPayloadArgs<TConfig, TState>): TData;

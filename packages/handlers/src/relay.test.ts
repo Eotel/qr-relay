@@ -165,6 +165,94 @@ describe("relay handler - steal", () => {
   });
 });
 
+describe("relay handler - onPlayerJoin (mid-game join)", () => {
+  function makeLatePlayer(id: string): Player {
+    return { id, name: id.toUpperCase(), joinedAt: 1_000 };
+  }
+
+  it("baton: late joiner is created without the token", () => {
+    const rule = getRule("baton");
+    const players = makePlayers(2);
+    const s0 = relayHandler.initialState({ config: rule, players, now: 0 });
+    const late = makeLatePlayer("p3");
+    const s1 = relayHandler.onPlayerJoin?.({
+      state: s0,
+      config: rule,
+      player: late,
+      now: 1_000,
+    });
+    if (!s1) throw new Error("onPlayerJoin missing");
+    const slot = slotOf(s1, "p3");
+    expect(slot.kind === "token" && slot.has).toBe(false);
+  });
+
+  it("baton: late joiner can scan a holder and take the token", () => {
+    const rule = getRule("baton");
+    const players = makePlayers(2);
+    const [p1] = players as [Player, Player];
+    const s0 = relayHandler.initialState({ config: rule, players, now: 0 });
+    const late = makeLatePlayer("p3");
+    const s1 = relayHandler.onPlayerJoin?.({
+      state: s0,
+      config: rule,
+      player: late,
+      now: 1_000,
+    });
+    if (!s1) throw new Error("onPlayerJoin missing");
+    const s2 = scan(s1, rule, late, p1, 2_000);
+    const lateSlot = slotOf(s2, "p3");
+    const p1Slot = slotOf(s2, p1.id);
+    expect(lateSlot.kind === "token" && lateSlot.has).toBe(true);
+    expect(p1Slot.kind === "token" && p1Slot.has).toBe(false);
+  });
+
+  it("steal: late joiner starts at initial.amount (10) because initial.holders === 'all'", () => {
+    const rule = getRule("steal");
+    const players = makePlayers(2);
+    const s0 = relayHandler.initialState({ config: rule, players, now: 0 });
+    const late = makeLatePlayer("p3");
+    const s1 = relayHandler.onPlayerJoin?.({
+      state: s0,
+      config: rule,
+      player: late,
+      now: 1_000,
+    });
+    if (!s1) throw new Error("onPlayerJoin missing");
+    const slot = slotOf(s1, "p3");
+    expect(slot.kind === "score" && slot.amount).toBe(10);
+  });
+
+  it("collection: late joiner starts at 0", () => {
+    const rule = getRule("collection");
+    const players = makePlayers(2);
+    const s0 = relayHandler.initialState({ config: rule, players, now: 0 });
+    const late = makeLatePlayer("p3");
+    const s1 = relayHandler.onPlayerJoin?.({
+      state: s0,
+      config: rule,
+      player: late,
+      now: 1_000,
+    });
+    if (!s1) throw new Error("onPlayerJoin missing");
+    const slot = slotOf(s1, "p3");
+    expect(slot.kind === "score" && slot.amount).toBe(0);
+  });
+
+  it("idempotent: if the slot already exists, state is returned unchanged", () => {
+    const rule = getRule("collection");
+    const players = makePlayers(2);
+    const [p1] = players as [Player, Player];
+    const s0 = relayHandler.initialState({ config: rule, players, now: 0 });
+    const s1 = relayHandler.onPlayerJoin?.({
+      state: s0,
+      config: rule,
+      player: p1,
+      now: 999,
+    });
+    expect(s1).toBe(s0);
+  });
+});
+
 describe("relay handler - metrics", () => {
   it("collection metrics report scanner scores", () => {
     const rule = getRule("collection");
