@@ -18,6 +18,25 @@ export const RoomClosedLazy = lazy(() =>
   import("./routes/RoomClosed.js").then((m) => ({ default: m.RoomClosed })),
 );
 
+// DEV-only debug routes. Gated on `import.meta.env.DEV` (a build-time constant)
+// so Vite/Rollup eliminates the entire DEV branch — including the dynamic
+// import() calls — from `vite build`. The production bundle ships without
+// /debug, DebugRoom, the bot pool, scenarios, or edge-case payloads.
+const debugRouteObjects: RouteObject[] = import.meta.env.DEV
+  ? (() => {
+      const Debug = lazy(() =>
+        import("./routes/Debug.js").then((m) => ({ default: m.Debug })),
+      );
+      const DebugRoom = lazy(() =>
+        import("./routes/DebugRoom.js").then((m) => ({ default: m.DebugRoom })),
+      );
+      return [
+        { path: "/debug", element: <Debug /> },
+        { path: "/debug/:code", element: <DebugRoom /> },
+      ];
+    })()
+  : [];
+
 export const appRouteObjects: RouteObject[] = [
   { path: "/", element: <Home /> },
   { path: "/new", element: <NewRoomLazy /> },
@@ -37,6 +56,7 @@ export const appRouteObjects: RouteObject[] = [
       { path: "scoreboard", element: <ScoreboardLazy /> },
     ],
   },
+  ...debugRouteObjects,
   { path: "*", element: <Navigate to="/" replace /> },
 ];
 
