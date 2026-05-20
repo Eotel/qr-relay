@@ -1,14 +1,8 @@
-import React, { Suspense, lazy } from "react";
+import React, { Suspense } from "react";
 import ReactDOM from "react-dom/client";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter } from "react-router-dom";
 import "@qr-relay/ui/styles.css";
-import { Home } from "./routes/Home.js";
-
-const NewRoom = lazy(() => import("./routes/NewRoom.js").then((m) => ({ default: m.NewRoom })));
-const Room = lazy(() => import("./routes/Room.js").then((m) => ({ default: m.Room })));
-const Scoreboard = lazy(() =>
-  import("./routes/Scoreboard.js").then((m) => ({ default: m.Scoreboard })),
-);
+import { AppRoutes } from "./routes.js";
 
 function RouteFallback() {
   return (
@@ -25,13 +19,7 @@ ReactDOM.createRoot(root).render(
   <React.StrictMode>
     <BrowserRouter>
       <Suspense fallback={<RouteFallback />}>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/new" element={<NewRoom />} />
-          <Route path="/r/:code" element={<Room />} />
-          <Route path="/r/:code/scoreboard" element={<Scoreboard />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        <AppRoutes />
       </Suspense>
     </BrowserRouter>
   </React.StrictMode>,

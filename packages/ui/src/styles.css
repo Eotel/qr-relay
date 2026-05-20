@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+/* Tailwind v4 auto-source-detection walks up from this CSS file to the
+   nearest package.json (= packages/ui) and scans below it. In a pnpm
+   workspace that misses every consumer (apps/client, apps/server, sibling
+   packages). Without these @source lines, classes used in apps/client/src
+   (mx-auto, max-w-[720px], px-3, …) are silently dropped from the bundle
+   and the room layout loses its margins. Keep these explicit. */
+@source "../../../apps/client/src/**/*.{ts,tsx,js,jsx}";
+@source "../../../packages/ui/src/**/*.{ts,tsx,js,jsx}";
+
 /* Class-based dark variant: <html class="dark"> = stage register.
    Without this, Tailwind v4 defaults to prefers-color-scheme — we
    want author intent, not OS preference, to choose the register. */
