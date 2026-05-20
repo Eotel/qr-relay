@@ -15,7 +15,7 @@ plan or a focused sub-plan.**
 ## Context
 
 - Parent plan (completed): `docs/exec-plans/completed/2026-05-20-metrics-and-end-state-roadmap.md`.
-- Ship-now batch already landed: `encounters` 列 (`RankingsTile`), sort toggle + 未参加 badge, `直近 60s` throughput in `StopwatchTile`.
+- Ship-now batch already landed: `encounters` 列 (`RankingsTile`), sort toggle + 未参加 badge. ~~`直近 60s` throughput in `StopwatchTile`~~ は後に削除 (`StopwatchTile` の prop を `phase` / `elapsedMs` のみに整理し、`overview-play` 下段は新 `ScanCountTile` で「総スキャン数」を表示する構成に置換。`recentThroughput` 関数自体は `host-view.ts` に残置)。再導入する場合は [ADR-0007](../../adr/0007-host-operator-strip-to-header.md) §Risks の note 参照。
 - Original analysis identified 8 candidate metrics; ship-now took 3, defer took 3, nice-to-have is the remaining 4 (below).
 - 設計原則 (from parent Decision Log) は継承する: 「filter / sort / 列で済むものは新 view mode を作らない」「scalar は新 tile を作らない」「server `metrics()` は触らない、client-side 集計に寄せる」。
 

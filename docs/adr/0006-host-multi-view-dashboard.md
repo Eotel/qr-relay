@@ -1,8 +1,9 @@
 # ADR-0006: ホスト dashboard に view switcher を内蔵し、`/scoreboard` 経由のスコア閲覧は host から外す
 
 **Date**: 2026-05-20
-**Status**: accepted
+**Status**: accepted (§Decision 5 と §Decision 6 のうち OperatorStrip 部分は [ADR-0007](0007-host-operator-strip-to-header.md) で superseded)
 **Supersedes**: [ADR-0004](0004-host-stage-dashboard.md) §Decision 2 / §Decision 3 (view-kind と grid 切替の運用が変わるため。pickHostHeroView は overview mode 内に残存)
+**Superseded-in-part-by**: [ADR-0007](0007-host-operator-strip-to-header.md)
 **Related**: [ADR-0003](0003-game-phase-state-machine.md), [ADR-0005](0005-drop-player-board-from-host-stage.md)
 **Deciders**: miura
 

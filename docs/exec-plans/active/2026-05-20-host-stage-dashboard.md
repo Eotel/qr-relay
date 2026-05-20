@@ -5,6 +5,8 @@ Status: In Progress (M5 docs & ADR done; 6m 視認 / 解像度キャプチャは
 Created: 2026-05-20
 
 > **Follow-up**: 2026-05-20 に本プランの上に [host-multi-view-dashboard](./2026-05-20-host-multi-view-dashboard.md) を積み、HostDashboard 内に ViewSwitcher (5 mode) を内蔵 + host 側 `/scoreboard` tab を撤去した。判断の詳細は [ADR-0006](../../adr/0006-host-multi-view-dashboard.md)。本プランの §M1 (pickHostHeroView) は overview mode 内で継続使用。
+>
+> **Update 2026-05-20**: 本プランで実装した `OperatorStrip.tsx` (§M2.6) はその後削除され、start / pause / resume / reset は `RoomLayout` ヘッダ右端の pill button に移った ([ADR-0007](../../adr/0007-host-operator-strip-to-header.md))。タイル列挙の "6 tile" や `op` area への言及は ADR-0007 §Decision を正規とする。`StopwatchTile` も pure presentational に整理され、tick driver は新 wrapper `StopwatchTileLive` が所有する。
 
 ## Goal
 

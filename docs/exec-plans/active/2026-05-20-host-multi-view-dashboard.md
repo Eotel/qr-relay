@@ -4,6 +4,8 @@ Owner: miura
 Status: Implemented (pending review / merge)
 Created: 2026-05-20
 
+> **Update 2026-05-20**: 本プラン本文中の `OperatorStrip` / `op` area / 下部固定帯への言及は、後続の [ADR-0007](../../adr/0007-host-operator-strip-to-header.md) で superseded。`OperatorStrip.tsx` は削除され、start / pause / resume / reset は `RoomLayout` ヘッダ右端の `HostHeaderOperator` (pill button × 2) に移った。同時に dashboard tick driver も `StopwatchTileLive` に閉じ込め、focus tile (`RankingsTile` / `TokenPathTile` / `InfectionGridTile`) は `React.memo` + mode-gated memo で hidden 時の再計算を skip するようになった。`overview-play` の下段には `ScanCountTile` が追加されている。本文の「全 mode で OperatorStrip 常時可視」「6 grid templates」等の記述は、ADR-0007 §Decision を正規とする。
+
 ## Context
 
 「ホストが ゲーム終了を明示する状態」は作らない方針で合意した。`paused` phase は scan ブロックと最終 metrics 計算を既に担っており、結果は「pause 中に止まったライブ値を眺める」で足りる (`apps/server/src/room.ts` 内 `reduceScan`)。

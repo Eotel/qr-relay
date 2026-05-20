@@ -102,6 +102,8 @@ PlayerBoard は残し、viewport 幅制約だけ外す。
 - 5 tile (Hero / LastScanTicker / Stopwatch / JoinQr / OperatorStrip) で構成が
   簡素化。`pickHostHeroView` の view-kind 切替は維持 (Hero の中身選択は preset
   特化のままで価値が残る) する一方、grid template 数が 4 → 2 に半減した。
+  (後日: [ADR-0007](0007-host-operator-strip-to-header.md) で OperatorStrip を
+  ヘッダへ移し、`overview-play` には `ScanCountTile` を追加。)
 - room code の表示が冗長でなくなった (header chip + waiting hero の 2 箇所、
   どちらも役割が違う)。
 - 「自分が join できたか」の安心感は **header の人数 chip + waiting hero の
