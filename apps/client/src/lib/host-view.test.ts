@@ -361,10 +361,22 @@ describe("tokenPathChain", () => {
     ]);
   });
 
-  it("unknown player IDs fall back to a short id stub", () => {
-    const state = stateWithHistory([{ scannerId: "ghost-7b9c", scannedId: "alice", ts: 1 }]);
+  it("entries referencing departed players are dropped (no ghost rows)", () => {
+    const state = stateWithHistory([
+      { scannerId: "ghost-7b9c", scannedId: "alice", ts: 1 },
+      { scannerId: "alice", scannedId: "ghost-7b9c", ts: 2 },
+      { scannerId: "alice", scannedId: "bob", ts: 3 },
+    ]);
     const chain = tokenPathChain(state, players);
-    expect(chain[0]).toMatchObject({ scannerName: "#ghos", scannedName: "Alice" });
+    expect(chain.map((s) => [s.scannerName, s.scannedName, s.ts])).toEqual([["Alice", "Bob", 3]]);
+  });
+
+  it("returns an empty chain when no players remain even if history is non-empty", () => {
+    const state = stateWithHistory([
+      { scannerId: "alice", scannedId: "bob", ts: 1 },
+      { scannerId: "bob", scannedId: "carol", ts: 2 },
+    ]);
+    expect(tokenPathChain(state, [])).toEqual([]);
   });
 
   it("missing history returns empty array", () => {

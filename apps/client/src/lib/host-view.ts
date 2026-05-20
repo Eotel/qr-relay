@@ -291,8 +291,9 @@ export function inboundEncounterCounts(
 /**
  * Scan history in time-ascending order, each entry resolved to player names so
  * the dashboard can render `Alice → Bob` rows without re-joining player data.
- * Unknown player IDs (e.g., disconnected) fall back to a short id stub so the
- * row is still readable.
+ * Entries referencing players no longer present in `players[]` are dropped —
+ * server keeps history for attribution, but the path view stays consistent
+ * with rankings/participants and never surfaces ghost `#id` rows.
  */
 export type TokenPathStep = {
   scannerId: string;
@@ -326,14 +327,18 @@ export function computeGridShape(n: number, aspect: number): GridShape {
 export function tokenPathChain(state: unknown, players: PlayerLite[]): TokenPathStep[] {
   const history = readHistory(state);
   const nameById = new Map(players.map((p) => [p.id, p.name]));
-  const labelFor = (id: string): string => nameById.get(id) ?? `#${id.slice(0, 4)}`;
-  return [...history]
-    .sort((a, b) => a.ts - b.ts)
-    .map((h) => ({
+  const out: TokenPathStep[] = [];
+  for (const h of [...history].sort((a, b) => a.ts - b.ts)) {
+    const scannerName = nameById.get(h.scannerId);
+    const scannedName = nameById.get(h.scannedId);
+    if (scannerName === undefined || scannedName === undefined) continue;
+    out.push({
       scannerId: h.scannerId,
-      scannerName: labelFor(h.scannerId),
+      scannerName,
       scannedId: h.scannedId,
-      scannedName: labelFor(h.scannedId),
+      scannedName,
       ts: h.ts,
-    }));
+    });
+  }
+  return out;
 }
