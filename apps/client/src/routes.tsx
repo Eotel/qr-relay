@@ -14,10 +14,16 @@ export const RoomRootLazy = lazy(() =>
 export const ScoreboardLazy = lazy(() =>
   import("./routes/Scoreboard.js").then((m) => ({ default: m.Scoreboard })),
 );
+export const RoomClosedLazy = lazy(() =>
+  import("./routes/RoomClosed.js").then((m) => ({ default: m.RoomClosed })),
+);
 
 export const appRouteObjects: RouteObject[] = [
   { path: "/", element: <Home /> },
   { path: "/new", element: <NewRoomLazy /> },
+  // /r/:code/closed is intentionally outside RoomLayout so it doesn't re-trigger
+  // a WS join after the room is gone.
+  { path: "/r/:code/closed", element: <RoomClosedLazy /> },
   {
     path: "/r/:code",
     element: <RoomLayoutLazy />,

@@ -98,13 +98,14 @@ describe("WsClientMsg", () => {
     },
   };
 
-  it("parses scan / ping / start / pause / resume / reset", () => {
+  it("parses scan / ping / start / pause / resume / reset / keepalive", () => {
     expect(WsClientMsg.parse(scan).t).toBe("scan");
     expect(WsClientMsg.parse({ t: "ping" }).t).toBe("ping");
     expect(WsClientMsg.parse({ t: "start" }).t).toBe("start");
     expect(WsClientMsg.parse({ t: "pause" }).t).toBe("pause");
     expect(WsClientMsg.parse({ t: "resume" }).t).toBe("resume");
     expect(WsClientMsg.parse({ t: "reset" }).t).toBe("reset");
+    expect(WsClientMsg.parse({ t: "keepalive" }).t).toBe("keepalive");
   });
 
   it("rejects the deprecated 'end' discriminator", () => {

@@ -14,7 +14,12 @@ export type WsMessage =
   | { t: "players"; players: PlayerLite[] }
   | { t: "event"; event: Record<string, unknown> }
   | { t: "error"; message: string }
-  | { t: "pong" };
+  | { t: "pong" }
+  | { t: "inactivity-warning"; closeAt: number }
+  | { t: "inactivity-cleared" }
+  | { t: "closed"; reason: "inactivity" };
+
+export type RoomClosed = { reason: "inactivity" };
 
 export type PlayerLite = { id: string; name: string; joinedAt: number };
 
@@ -31,11 +36,16 @@ export type WsStoreState = {
   lastError: string | null;
   socket: WebSocket | null;
   reconnectTimer: TimerId | null;
+  /** Non-null while the server has issued an inactivity warning. */
+  inactivity: { closeAt: number } | null;
+  /** Non-null once the server has closed the room. RoomLayout reads this to navigate. */
+  closed: RoomClosed | null;
   connect: (code: string, playerId: string, role: WsRole) => void;
   disconnect: () => void;
   send: (msg: unknown) => void;
   setRoom: (room: RoomInfo) => void;
   setRole: (role: WsRole | null) => void;
+  clearClosed: () => void;
   setSnapshot: (snap: {
     players?: PlayerLite[];
     state?: unknown;
@@ -91,6 +101,8 @@ export function createWsStore(deps: WsStoreDeps): WsStore {
     lastError: null,
     socket: null,
     reconnectTimer: null,
+    inactivity: null,
+    closed: null,
 
     connect(code, playerId, role) {
       get().disconnect();
@@ -115,6 +127,15 @@ export function createWsStore(deps: WsStoreDeps): WsStore {
             set({ players: data.players });
           } else if (data.t === "error") {
             set({ lastError: data.message });
+          } else if (data.t === "inactivity-warning") {
+            set({ inactivity: { closeAt: data.closeAt } });
+          } else if (data.t === "inactivity-cleared") {
+            set({ inactivity: null });
+          } else if (data.t === "closed") {
+            // Server is tearing the room down. Stop the auto-reconnect loop and
+            // surface a one-shot "closed" so the route layer can navigate.
+            set({ closed: { reason: data.reason }, inactivity: null });
+            get().disconnect();
           }
         } catch {
           // ignore malformed payloads
@@ -122,6 +143,8 @@ export function createWsStore(deps: WsStoreDeps): WsStore {
       });
       ws.addEventListener("close", () => {
         set({ connected: false, socket: null });
+        // Skip reconnect if the room is closed — there's nothing to reconnect to.
+        if (get().closed) return;
         const timer = clock.setTimeout(() => get().connect(code, playerId, role), reconnectDelayMs);
         set({ reconnectTimer: timer });
       });
@@ -157,6 +180,10 @@ export function createWsStore(deps: WsStoreDeps): WsStore {
 
     setRole(role) {
       set({ role });
+    },
+
+    clearClosed() {
+      set({ closed: null });
     },
 
     setSnapshot(snap) {

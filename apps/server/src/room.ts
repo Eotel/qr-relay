@@ -99,9 +99,7 @@ export class RoomDurableObject implements DurableObject {
     // Defensive: rooms persisted before the inactivity timer existed lack
     // lastActivityAt. Fall back to createdAt so the alarm has a starting point.
     const normalizedMeta: RoomMeta =
-      meta.lastActivityAt === undefined
-        ? { ...meta, lastActivityAt: meta.createdAt }
-        : meta;
+      meta.lastActivityAt === undefined ? { ...meta, lastActivityAt: meta.createdAt } : meta;
     return { meta: normalizedMeta, players, state };
   }
 

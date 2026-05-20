@@ -4,7 +4,13 @@ import { fileURLToPath } from "node:url";
 import { isValidElement } from "react";
 import { matchRoutes } from "react-router-dom";
 import { describe, expect, it } from "vitest";
-import { RoomLayoutLazy, RoomRootLazy, ScoreboardLazy, appRouteObjects } from "./routes.js";
+import {
+  RoomClosedLazy,
+  RoomLayoutLazy,
+  RoomRootLazy,
+  ScoreboardLazy,
+  appRouteObjects,
+} from "./routes.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -30,6 +36,16 @@ describe("appRouteObjects", () => {
     expect(chain).toHaveLength(2);
     expect(elementType(chain[0]?.route.element)).toBe(RoomLayoutLazy);
     expect(elementType(chain[1]?.route.element)).toBe(ScoreboardLazy);
+  });
+
+  it("matches /r/:code/closed to RoomClosed without RoomLayout in chain", () => {
+    const matches = matchRoutes(appRouteObjects, "/r/ABC123/closed");
+    expect(matches).not.toBeNull();
+    const chain = matches ?? [];
+    // closed is a top-level route, NOT nested under RoomLayout — otherwise
+    // RoomLayout would try to (re-)join a room that has just been destroyed.
+    expect(chain).toHaveLength(1);
+    expect(elementType(chain[0]?.route.element)).toBe(RoomClosedLazy);
   });
 });
 

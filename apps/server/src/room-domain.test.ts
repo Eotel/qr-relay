@@ -5,6 +5,7 @@ import {
   NONCE_TTL_MS,
   type Stored,
   TS_WINDOW_MS,
+  decideAlarmAction,
   gcNonces,
   reduceInit,
   reduceJoin,
@@ -541,5 +542,49 @@ describe("touchActivity / lastActivityAt", () => {
     expect(resumed.kind).toBe("ok");
     if (resumed.kind !== "ok") return;
     expect(resumed.stored.meta.lastActivityAt).toBe(before);
+  });
+});
+
+describe("decideAlarmAction", () => {
+  const WARN = 10 * 60_000;
+  const CLOSE = 15 * 60_000;
+
+  it("idle < warn: reschedule to lastActivityAt + warn (no broadcast)", () => {
+    const d = decideAlarmAction(NOW, NOW + 1_000, WARN, CLOSE);
+    expect(d).toEqual({ kind: "reschedule", at: NOW + WARN });
+  });
+
+  it("idle == warn: warn with closeAt at lastActivityAt + close", () => {
+    const d = decideAlarmAction(NOW, NOW + WARN, WARN, CLOSE);
+    expect(d).toEqual({ kind: "warn", closeAt: NOW + CLOSE, rescheduleAt: NOW + CLOSE });
+  });
+
+  it("warn ≤ idle < close: warn", () => {
+    const d = decideAlarmAction(NOW, NOW + WARN + 1, WARN, CLOSE);
+    expect(d.kind).toBe("warn");
+    if (d.kind === "warn") {
+      expect(d.closeAt).toBe(NOW + CLOSE);
+      expect(d.rescheduleAt).toBe(NOW + CLOSE);
+    }
+  });
+
+  it("idle == close: close", () => {
+    const d = decideAlarmAction(NOW, NOW + CLOSE, WARN, CLOSE);
+    expect(d).toEqual({ kind: "close" });
+  });
+
+  it("idle > close: close", () => {
+    const d = decideAlarmAction(NOW, NOW + CLOSE + 100_000, WARN, CLOSE);
+    expect(d).toEqual({ kind: "close" });
+  });
+
+  it("dev override (短い閾値) でも整合する", () => {
+    // dev: warn after 30s, close after 60s
+    const d1 = decideAlarmAction(NOW, NOW + 5_000, 30_000, 60_000);
+    expect(d1).toEqual({ kind: "reschedule", at: NOW + 30_000 });
+    const d2 = decideAlarmAction(NOW, NOW + 40_000, 30_000, 60_000);
+    expect(d2.kind).toBe("warn");
+    const d3 = decideAlarmAction(NOW, NOW + 60_000, 30_000, 60_000);
+    expect(d3).toEqual({ kind: "close" });
   });
 });

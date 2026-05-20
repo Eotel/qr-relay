@@ -231,4 +231,53 @@ describe("createWsStore", () => {
       2_500 + 3_000,
     );
   });
+
+  it("inactivity-warning は inactivity.closeAt を立てる", () => {
+    const { useWs, sockets } = setup();
+    useWs.getState().connect("ABC", "p1", "client");
+    sockets[0]?.emitOpen();
+    sockets[0]?.emitMessage({ t: "inactivity-warning", closeAt: 1_234_567_890 });
+    expect(useWs.getState().inactivity).toEqual({ closeAt: 1_234_567_890 });
+  });
+
+  it("inactivity-cleared で inactivity が null に戻る", () => {
+    const { useWs, sockets } = setup();
+    useWs.getState().connect("ABC", "p1", "client");
+    sockets[0]?.emitOpen();
+    sockets[0]?.emitMessage({ t: "inactivity-warning", closeAt: 9_000 });
+    sockets[0]?.emitMessage({ t: "inactivity-cleared" });
+    expect(useWs.getState().inactivity).toBeNull();
+  });
+
+  it("closed で closed.reason を立て、自動再接続もしない", () => {
+    const { useWs, sockets, pending } = setup();
+    useWs.getState().connect("ABC", "p1", "client");
+    sockets[0]?.emitOpen();
+    sockets[0]?.emitMessage({ t: "closed", reason: "inactivity" });
+    expect(useWs.getState().closed).toEqual({ reason: "inactivity" });
+    // disconnect was called from the handler → reconnect timer must not be armed.
+    expect(pending).toHaveLength(0);
+    expect(useWs.getState().inactivity).toBeNull();
+  });
+
+  it("closed 後に socket が close しても reconnect しない", () => {
+    const { useWs, sockets, pending } = setup();
+    useWs.getState().connect("ABC", "p1", "client");
+    sockets[0]?.emitOpen();
+    sockets[0]?.emitMessage({ t: "closed", reason: "inactivity" });
+    // server-side close arrives after the closed message.
+    sockets[0]?.emit("close");
+    expect(pending).toHaveLength(0);
+    expect(sockets).toHaveLength(1);
+  });
+
+  it("clearClosed で closed をリセットできる", () => {
+    const { useWs, sockets } = setup();
+    useWs.getState().connect("ABC", "p1", "client");
+    sockets[0]?.emitOpen();
+    sockets[0]?.emitMessage({ t: "closed", reason: "inactivity" });
+    expect(useWs.getState().closed).not.toBeNull();
+    useWs.getState().clearClosed();
+    expect(useWs.getState().closed).toBeNull();
+  });
 });

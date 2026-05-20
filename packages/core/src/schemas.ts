@@ -37,6 +37,10 @@ export const WsClientMsg = z.discriminatedUnion("t", [
   z.object({ t: z.literal("pause") }),
   z.object({ t: z.literal("resume") }),
   z.object({ t: z.literal("reset") }),
+  z.object({ t: z.literal("keepalive") }),
 ]);
 
 export type WsClientMsg = z.infer<typeof WsClientMsg>;
+
+export const InactivityCloseReason = z.enum(["inactivity"]);
+export type InactivityCloseReason = z.infer<typeof InactivityCloseReason>;
