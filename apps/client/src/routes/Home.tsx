@@ -212,11 +212,13 @@ export function Home() {
 
       <HomeFaq />
 
-      <JoinScannerOverlay
-        open={scannerOpen}
-        onClose={() => setScannerOpen(false)}
-        onJoin={onScanResult}
-      />
+      {scannerOpen && (
+        <JoinScannerOverlay
+          open={scannerOpen}
+          onClose={() => setScannerOpen(false)}
+          onJoin={onScanResult}
+        />
+      )}
     </main>
   );
 }

@@ -10,9 +10,10 @@ vi.mock("../lib/api.js", () => ({
 }));
 
 // Camera permission probe inside JoinScannerOverlay reaches into navigator.mediaDevices.
-// Stub the whole scanner — these tests are about the rejoin CTA, not QR scanning.
+// Stub the scanner — these tests are about routing/mount behavior, not QR decoding.
+// Render a marker div so tests can assert the overlay is (or isn't) in the DOM.
 vi.mock("../components/JoinScannerOverlay.js", () => ({
-  JoinScannerOverlay: () => null,
+  JoinScannerOverlay: () => <div data-testid="scan-overlay-mounted" />,
 }));
 
 function LocationProbe() {
@@ -58,6 +59,24 @@ describe("Home rejoin-host navigate target", () => {
     await waitFor(() => {
       expect(screen.getByTestId("loc")).toHaveTextContent("/r/ABC123/host");
     });
+  });
+
+  // Regression: JoinScannerOverlay used to be mounted unconditionally with an
+  // `open` prop. Its inner useQrScanner effect ran on first mount when the
+  // overlay returned null (no <video>), so videoRef.current was null and the
+  // effect bailed early. When the user later flipped `open` to true the
+  // <video> element appeared but the effect did NOT re-run (stable deps), so
+  // the camera never started — visible symptom was a dark scanner with no
+  // error message. Fix: gate the mount on scannerOpen so the <video> exists
+  // from the first render.
+  it("scan overlay is absent on landing and only mounts after the user opens it", async () => {
+    await renderHome();
+    expect(screen.queryByTestId("scan-overlay-mounted")).toBeNull();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /QR コードをスキャン/ }));
+
+    expect(screen.getByTestId("scan-overlay-mounted")).toBeInTheDocument();
   });
 
   it("join-by-code (client path) stays on /r/CODE without /host (URL = client intent)", async () => {
