@@ -22,11 +22,13 @@ test("home → 新規ルーム作成 → ホスト画面が描画され pageerro
   await page.getByRole("button", { name: /このプリセットで作成|作成中/ }).click();
   await page.waitForURL(/\/r\/[A-Z0-9]+$/, { timeout: 15_000 });
 
-  // RoomLayout 固有 — HOST バッジ + tab nav が出ていれば outlet context は機能している
+  // RoomLayout 固有 — HOST バッジ + dashboard 内蔵 ViewSwitcher が出ていれば
+  // outlet context は機能している。RoomLayout 上部の "表示切替" nav は host では
+  // 出さない (HostDashboard の ViewSwitcher が代替) ので tablist で検証する。
   await expect(page.getByText("HOST", { exact: true })).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "表示切替" })).toBeVisible();
-  // Host 画面の証拠: ROOM CODE 見出しと Join QR
-  await expect(page.getByText("ROOM CODE", { exact: true })).toBeVisible();
+  await expect(page.getByRole("tablist", { name: "表示の切替" })).toBeVisible();
+  // Host 画面の証拠: HeroTile の WAITING ラベルと Join QR
+  await expect(page.getByText("WAITING", { exact: true })).toBeVisible();
   await expect(page.getByTestId("join-qr")).toBeVisible();
 
   expect(pageErrors, `page errors: ${pageErrors.map((e) => e.message).join("\n")}`).toEqual([]);

@@ -1,6 +1,11 @@
 import type { Metric, Phase } from "@qr-relay/core";
 import { describe, expect, it } from "vitest";
-import { pickHostHeroView, summarizeMetricsForHost } from "./host-view.js";
+import {
+  pickHostHeroView,
+  rankings,
+  summarizeMetricsForHost,
+  tokenPathChain,
+} from "./host-view.js";
 import type { PlayerLite } from "./ws-store.js";
 
 const players: PlayerLite[] = [
@@ -157,5 +162,78 @@ describe("summarizeMetricsForHost", () => {
 
   it("empty metrics: zero scans, null holder count", () => {
     expect(summarizeMetricsForHost([])).toEqual({ totalScans: 0, tokenHolderCount: null });
+  });
+});
+
+function stateWithHistory(entries: { scannerId: string; scannedId: string; ts: number }[]) {
+  return { history: entries };
+}
+
+describe("rankings", () => {
+  it("counts scan-out / scan-in per player and sorts descending", () => {
+    const state = stateWithHistory([
+      { scannerId: "alice", scannedId: "bob", ts: 1 },
+      { scannerId: "alice", scannedId: "carol", ts: 2 },
+      { scannerId: "bob", scannedId: "alice", ts: 3 },
+    ]);
+    const r = rankings(state, players);
+    expect(r.scanOut.map((e) => [e.id, e.count])).toEqual([
+      ["alice", 2],
+      ["bob", 1],
+      ["carol", 0],
+    ]);
+    expect(r.scanIn.map((e) => [e.id, e.count])).toEqual([
+      ["alice", 1],
+      ["bob", 1],
+      ["carol", 1],
+    ]);
+  });
+
+  it("ties broken by joinedAt ascending (lobby order)", () => {
+    const state = stateWithHistory([
+      { scannerId: "bob", scannedId: "alice", ts: 1 },
+      { scannerId: "carol", scannedId: "alice", ts: 2 },
+    ]);
+    const r = rankings(state, players);
+    expect(r.scanOut.map((e) => e.id)).toEqual(["bob", "carol", "alice"]);
+  });
+
+  it("missing history returns zero counts for every player", () => {
+    const r = rankings(null, players);
+    expect(r.scanOut.every((e) => e.count === 0)).toBe(true);
+    expect(r.scanIn.every((e) => e.count === 0)).toBe(true);
+    expect(r.scanOut.map((e) => e.id)).toEqual(["alice", "bob", "carol"]);
+  });
+
+  it("malformed history entries are ignored", () => {
+    const r = rankings({ history: [null, { scannerId: 1 }, undefined] }, players);
+    expect(r.scanOut.every((e) => e.count === 0)).toBe(true);
+  });
+});
+
+describe("tokenPathChain", () => {
+  it("returns history in time-ascending order with resolved player names", () => {
+    const state = stateWithHistory([
+      { scannerId: "alice", scannedId: "bob", ts: 2 },
+      { scannerId: "carol", scannedId: "alice", ts: 1 },
+    ]);
+    const chain = tokenPathChain(state, players);
+    expect(chain.map((s) => [s.scannerName, s.scannedName, s.ts])).toEqual([
+      ["Carol", "Alice", 1],
+      ["Alice", "Bob", 2],
+    ]);
+  });
+
+  it("unknown player IDs fall back to a short id stub", () => {
+    const state = stateWithHistory([
+      { scannerId: "ghost-7b9c", scannedId: "alice", ts: 1 },
+    ]);
+    const chain = tokenPathChain(state, players);
+    expect(chain[0]).toMatchObject({ scannerName: "#ghos", scannedName: "Alice" });
+  });
+
+  it("missing history returns empty array", () => {
+    expect(tokenPathChain(null, players)).toEqual([]);
+    expect(tokenPathChain({}, players)).toEqual([]);
   });
 });

@@ -49,8 +49,12 @@ apps/client ─┘         └─ packages/handlers ─┘
                           ▼
             両端末の useWs store が state を更新
                           ▼
-            MetricsPanel が再レンダリング
-            QrDisplay の payload も refresh
+            Host: HostDashboard (md+) が現在の view mode に応じて
+                  tile を再描画 (Hero / Rankings / TokenPath /
+                  Infection / Participants)。view 切替は CSS のみ。
+            Client: handheld スコア tab (/scoreboard) の
+                    MetricsPanel が再レンダリング、QrDisplay の
+                    payload も refresh
 ```
 
 ## ScanHandler 抽象

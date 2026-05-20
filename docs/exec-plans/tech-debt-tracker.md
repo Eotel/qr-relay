@@ -1,12 +1,25 @@
 # Tech Debt Tracker
 
-Last reviewed: 2026-05-19
+Last reviewed: 2026-05-20
 
 「いつかやる」レベルの負債を集約。優先度をつけて時々レビューする。
 
 ## 既知の負債
 
 ### 検証 / 品質
+
+- [ ] **E2E `host-client-roles.spec.ts:27` の `スコアボード` assert が古い**
+  - 現状: `feat(host): stage dashboard` 以降、md+ では HostDashboard が描画され
+    `スコアボード` 見出しは存在しない。さらに [ADR-0006](../adr/0006-host-multi-view-dashboard.md)
+    で host 側の `/scoreboard` tab も撤去された。
+  - 対処案: assert を `tablist (表示の切替)` 等、新 dashboard の不変条件に置き換える。
+    本来は `2026-05-20-host-stage-dashboard` 実装時に更新すべきだった。
+
+- [ ] **E2E `room-flow.spec.ts:37` の `max-w != none` assert が host の現状と矛盾**
+  - 現状: host main は `md:max-w-none md:px-6` を持つので computed `max-width` は
+    `"none"`。client (handheld) は `md:max-w-[1200px]` のままで OK。
+  - 対処案: テストを host/client それぞれの viewport で分けるか、client role でのみ
+    走らせる。
 
 - [ ] **実機 (iOS Safari) でのカメラ起動テストが未実施**
   - 現状: PC ブラウザ + Miniflare で動作確認のみ。`playsinline` / HTTPS 経由の挙動が

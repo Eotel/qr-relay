@@ -4,6 +4,8 @@ Owner: miura
 Status: In Progress (M5 docs & ADR done; 6m 視認 / 解像度キャプチャは手動残)
 Created: 2026-05-20
 
+> **Follow-up**: 2026-05-20 に本プランの上に [host-multi-view-dashboard](./2026-05-20-host-multi-view-dashboard.md) を積み、HostDashboard 内に ViewSwitcher (5 mode) を内蔵 + host 側 `/scoreboard` tab を撤去した。判断の詳細は [ADR-0006](../../adr/0006-host-multi-view-dashboard.md)。本プランの §M1 (pickHostHeroView) は overview mode 内で継続使用。
+
 ## Goal
 
 ホスト画面を「プロジェクター / 大画面に映した瞬間に、その場の全員が一目で

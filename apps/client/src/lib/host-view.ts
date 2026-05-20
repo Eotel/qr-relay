@@ -154,3 +154,87 @@ export function summarizeMetricsForHost(metrics: Metric[]): HostMetricSummary {
   }
   return { totalScans, tokenHolderCount };
 }
+
+/** One scan entry as stored in RelayState.history. */
+export type ScanHistoryEntry = { scannerId: string; scannedId: string; ts: number };
+
+type RelayStateWithHistory = RelayStateShape & {
+  history?: unknown;
+};
+
+function readHistory(state: unknown): ScanHistoryEntry[] {
+  if (!state || typeof state !== "object") return [];
+  const raw = (state as RelayStateWithHistory).history;
+  if (!Array.isArray(raw)) return [];
+  const out: ScanHistoryEntry[] = [];
+  for (const e of raw) {
+    if (!e || typeof e !== "object") continue;
+    const { scannerId, scannedId, ts } = e as Record<string, unknown>;
+    if (typeof scannerId !== "string" || typeof scannedId !== "string" || typeof ts !== "number") {
+      continue;
+    }
+    out.push({ scannerId, scannedId, ts });
+  }
+  return out;
+}
+
+/**
+ * scan-out (the player initiated) / scan-in (the player was the target) rankings.
+ * Sorted by count descending; ties broken by joinedAt ascending so the lobby
+ * order is preserved (and the order is deterministic across re-renders).
+ *
+ * Every known player is included even with count 0 so the host can see who
+ * hasn't participated yet.
+ */
+export type RankedEntry = { id: string; name: string; count: number };
+export type Rankings = { scanOut: RankedEntry[]; scanIn: RankedEntry[] };
+
+export function rankings(state: unknown, players: PlayerLite[]): Rankings {
+  const history = readHistory(state);
+  const outCounts = new Map<string, number>();
+  const inCounts = new Map<string, number>();
+  for (const h of history) {
+    outCounts.set(h.scannerId, (outCounts.get(h.scannerId) ?? 0) + 1);
+    inCounts.set(h.scannedId, (inCounts.get(h.scannedId) ?? 0) + 1);
+  }
+  const joinOrder = new Map(players.map((p) => [p.id, p.joinedAt]));
+  const build = (counts: Map<string, number>): RankedEntry[] =>
+    players
+      .map((p) => ({ id: p.id, name: p.name, count: counts.get(p.id) ?? 0 }))
+      .sort((a, b) => {
+        if (b.count !== a.count) return b.count - a.count;
+        const ja = joinOrder.get(a.id) ?? 0;
+        const jb = joinOrder.get(b.id) ?? 0;
+        return ja - jb;
+      });
+  return { scanOut: build(outCounts), scanIn: build(inCounts) };
+}
+
+/**
+ * Scan history in time-ascending order, each entry resolved to player names so
+ * the dashboard can render `Alice → Bob` rows without re-joining player data.
+ * Unknown player IDs (e.g., disconnected) fall back to a short id stub so the
+ * row is still readable.
+ */
+export type TokenPathStep = {
+  scannerId: string;
+  scannerName: string;
+  scannedId: string;
+  scannedName: string;
+  ts: number;
+};
+
+export function tokenPathChain(state: unknown, players: PlayerLite[]): TokenPathStep[] {
+  const history = readHistory(state);
+  const nameById = new Map(players.map((p) => [p.id, p.name]));
+  const labelFor = (id: string): string => nameById.get(id) ?? `#${id.slice(0, 4)}`;
+  return [...history]
+    .sort((a, b) => a.ts - b.ts)
+    .map((h) => ({
+      scannerId: h.scannerId,
+      scannerName: labelFor(h.scannerId),
+      scannedId: h.scannedId,
+      scannedName: labelFor(h.scannedId),
+      ts: h.ts,
+    }));
+}

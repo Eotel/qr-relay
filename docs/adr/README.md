@@ -17,8 +17,9 @@ Last reviewed: 2026-05-20
 | [0001](0001-drop-status-value-kind.md) | `status` value kind を廃止し `token` に統合 | accepted | 2026-05-20 |
 | [0002](0002-move-end-conditions-out-of-engine.md) | 終了条件を engine から外し manual + 外部ストップウォッチに移行 | accepted | 2026-05-20 |
 | [0003](0003-game-phase-state-machine.md) | ready / running / paused のゲームフェーズ状態機械を導入 | accepted | 2026-05-20 |
-| [0004](0004-host-stage-dashboard.md) | ホスト画面を会場全員向けの stage dashboard に再構成 (md+) | accepted (§Decision 4 superseded by [0005](0005-drop-player-board-from-host-stage.md)) | 2026-05-20 |
+| [0004](0004-host-stage-dashboard.md) | ホスト画面を会場全員向けの stage dashboard に再構成 (md+) | accepted (§Decision 4 superseded by [0005](0005-drop-player-board-from-host-stage.md); §Decision 2/3 evolved by [0006](0006-host-multi-view-dashboard.md)) | 2026-05-20 |
 | [0005](0005-drop-player-board-from-host-stage.md) | ホスト stage から全員 PlayerBoard を外し、人数チップと room code に集約 | accepted | 2026-05-20 |
+| [0006](0006-host-multi-view-dashboard.md) | ホスト dashboard に ViewSwitcher を内蔵し host 側 `/scoreboard` tab を撤去 | accepted | 2026-05-20 |
 
 ## ADR と他のドキュメントの使い分け
 
