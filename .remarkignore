@@ -1,0 +1,22 @@
+# Dependencies / build artifacts
+node_modules
+dist
+build
+coverage
+test-results
+playwright-report
+.wrangler
+.output
+.vite
+
+# AI agent context / tooling directories (no TOC, no lint)
+.agents
+.claude
+.codex
+.impeccable
+.serena
+.github
+
+# Lockfiles / generated
+pnpm-lock.yaml
+CHANGELOG.md
