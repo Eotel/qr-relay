@@ -37,20 +37,39 @@ describe("ScanPayloadV1", () => {
 });
 
 describe("JoinRequest", () => {
-  it("accepts valid player join", () => {
-    expect(JoinRequest.parse({ playerId: "p1", name: "Alice" })).toEqual({
+  it("accepts valid client join", () => {
+    expect(JoinRequest.parse({ playerId: "p1", name: "Alice", role: "client" })).toEqual({
       playerId: "p1",
       name: "Alice",
+      role: "client",
+    });
+  });
+
+  it("accepts valid host join", () => {
+    expect(JoinRequest.parse({ playerId: "h1", name: "Host", role: "host" })).toEqual({
+      playerId: "h1",
+      name: "Host",
+      role: "host",
     });
   });
 
   it("rejects empty playerId or name", () => {
-    expect(() => JoinRequest.parse({ playerId: "", name: "x" })).toThrow();
-    expect(() => JoinRequest.parse({ playerId: "p", name: "" })).toThrow();
+    expect(() => JoinRequest.parse({ playerId: "", name: "x", role: "client" })).toThrow();
+    expect(() => JoinRequest.parse({ playerId: "p", name: "", role: "client" })).toThrow();
   });
 
   it("rejects name longer than 40 characters", () => {
-    expect(() => JoinRequest.parse({ playerId: "p", name: "x".repeat(41) })).toThrow();
+    expect(() =>
+      JoinRequest.parse({ playerId: "p", name: "x".repeat(41), role: "client" }),
+    ).toThrow();
+  });
+
+  it("rejects unknown role", () => {
+    expect(() => JoinRequest.parse({ playerId: "p", name: "x", role: "stranger" })).toThrow();
+  });
+
+  it("rejects missing role", () => {
+    expect(() => JoinRequest.parse({ playerId: "p", name: "x" })).toThrow();
   });
 });
 

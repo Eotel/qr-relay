@@ -72,6 +72,43 @@ describe("getPlayerName / setPlayerName", () => {
   });
 });
 
+describe("getRole / setRole / clearRole", () => {
+  it("getRole は未保存なら null", async () => {
+    const { getRole } = await loadIdentity();
+    expect(getRole("ABC")).toBeNull();
+  });
+
+  it("setRole で保存し getRole で読み戻す", async () => {
+    const { getRole, setRole } = await loadIdentity();
+    setRole("ABC", "host");
+    expect(getRole("ABC")).toBe("host");
+    expect(storage.getItem("qr-relay:role:ABC")).toBe("host");
+    setRole("ABC", "client");
+    expect(getRole("ABC")).toBe("client");
+  });
+
+  it("不正な値は getRole で null として扱う", async () => {
+    storage.setItem("qr-relay:role:ABC", "stranger");
+    const { getRole } = await loadIdentity();
+    expect(getRole("ABC")).toBeNull();
+  });
+
+  it("clearRole で削除する", async () => {
+    const { getRole, setRole, clearRole } = await loadIdentity();
+    setRole("ABC", "host");
+    clearRole("ABC");
+    expect(getRole("ABC")).toBeNull();
+  });
+
+  it("code ごとに独立して保存される", async () => {
+    const { getRole, setRole } = await loadIdentity();
+    setRole("ABC", "host");
+    setRole("XYZ", "client");
+    expect(getRole("ABC")).toBe("host");
+    expect(getRole("XYZ")).toBe("client");
+  });
+});
+
 describe("ensurePlayerName", () => {
   it("preserves an existing name", async () => {
     storage.setItem("qr-relay:player-name", "Bob");

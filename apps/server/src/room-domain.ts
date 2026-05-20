@@ -12,7 +12,10 @@ export type RoomMeta = {
   createdAt: number;
   startedAt: number | null;
   endedAt: number | null;
+  hostId: string | null;
 };
+
+export type PlayerRole = "host" | "client";
 
 export type Stored = {
   meta: RoomMeta;
@@ -56,6 +59,7 @@ export function reduceInit(input: InitInput, now: number): InitResult {
     createdAt: now,
     startedAt: null,
     endedAt: null,
+    hostId: null,
   };
   return {
     kind: "ok",
@@ -66,9 +70,19 @@ export function reduceInit(input: InitInput, now: number): InitResult {
 export type JoinInput = {
   playerId: string;
   name: string;
+  role: PlayerRole;
 };
 
 export function reduceJoin(stored: Stored, input: JoinInput, now: number): Stored {
+  if (input.role === "host") {
+    // First host wins; subsequent host joins (re-connects) are accepted but
+    // do not overwrite a different hostId. Hosts never enter players[].
+    if (stored.meta.hostId === null) {
+      const meta: RoomMeta = { ...stored.meta, hostId: input.playerId };
+      return { ...stored, meta };
+    }
+    return stored;
+  }
   const players = stored.players.slice();
   const existing = players.find((p) => p.id === input.playerId);
   if (!existing) {
@@ -158,6 +172,22 @@ export function gcNonces(map: Map<string, number>, now: number): Map<string, num
 
 export function reduceScan(input: ScanInput): ScanResult {
   const { stored, scannerId, payload, now } = input;
+
+  if (stored.meta.hostId !== null && scannerId === stored.meta.hostId) {
+    return {
+      kind: "error",
+      message: "host cannot scan",
+      recentNonces: input.recentNonces,
+    };
+  }
+
+  if (stored.meta.hostId !== null && payload.pid === stored.meta.hostId) {
+    return {
+      kind: "error",
+      message: "cannot scan host",
+      recentNonces: input.recentNonces,
+    };
+  }
 
   if (Math.abs(now - payload.ts) > TS_WINDOW_MS) {
     return {

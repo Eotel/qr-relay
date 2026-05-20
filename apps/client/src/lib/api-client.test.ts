@@ -103,7 +103,7 @@ describe("createApiClient", () => {
       );
     const client = createApiClient(fetchImpl);
 
-    const snap = await client.joinRoom("ABC", "p1", "Alice");
+    const snap = await client.joinRoom("ABC", "p1", "Alice", "client");
 
     expect(fetchImpl).toHaveBeenNthCalledWith(
       1,
@@ -113,6 +113,33 @@ describe("createApiClient", () => {
     expect(fetchImpl).toHaveBeenNthCalledWith(2, "/api/rooms/ABC");
     expect(snap.room.code).toBe("ABC");
     expect(snap.players).toHaveLength(1);
+    const joinCall = fetchImpl.mock.calls[0];
+    if (!joinCall) throw new Error("expected join call");
+    const [, init] = joinCall;
+    expect(JSON.parse(init?.body as string)).toEqual({
+      playerId: "p1",
+      name: "Alice",
+      role: "client",
+    });
+  });
+
+  it("joinRoom: role=host を body に含める", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ room: { code: "ABC" }, players: [] }))
+      .mockResolvedValueOnce(
+        jsonResponse({ room: { code: "ABC" }, players: [], state: null, metrics: [] }),
+      );
+    const client = createApiClient(fetchImpl);
+    await client.joinRoom("ABC", "h1", "Host", "host");
+    const joinCall = fetchImpl.mock.calls[0];
+    if (!joinCall) throw new Error("expected join call");
+    const [, init] = joinCall;
+    expect(JSON.parse(init?.body as string)).toEqual({
+      playerId: "h1",
+      name: "Host",
+      role: "host",
+    });
   });
 
   it("joinRoom: code を URL エンコードする", async () => {
@@ -123,7 +150,7 @@ describe("createApiClient", () => {
         jsonResponse({ room: { code: "A B" }, players: [], state: null, metrics: [] }),
       );
     const client = createApiClient(fetchImpl);
-    await client.joinRoom("A B", "p1", "n");
+    await client.joinRoom("A B", "p1", "n", "client");
     expect(fetchImpl.mock.calls[0]?.[0]).toBe("/api/rooms/A%20B/join");
     expect(fetchImpl.mock.calls[1]?.[0]).toBe("/api/rooms/A%20B");
   });

@@ -1,14 +1,13 @@
 import { ScanPayloadV1 } from "@qr-relay/core";
 import { Badge } from "@qr-relay/ui/badge";
-import { Button } from "@qr-relay/ui/button";
+import { Card } from "@qr-relay/ui/card";
 import { cn } from "@qr-relay/ui/cn";
-import { Camera, LayoutGrid, QrCode, RefreshCw } from "lucide-react";
+import { Camera, LayoutGrid, QrCode } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { MetricsPanel } from "../components/MetricsPanel.js";
 import { QrDisplay } from "../components/QrDisplay.js";
 import { QrScannerView } from "../components/QrScanner.js";
-import { startRoom } from "../lib/api.js";
 import { useWs } from "../lib/ws.js";
 import type { RoomOutletContext } from "./RoomLayout.js";
 
@@ -21,7 +20,7 @@ function nonce(): string {
 
 type View = "split" | "qr" | "scan";
 
-export function Room() {
+export function ClientRoom() {
   const { playerId, code } = useOutletContext<RoomOutletContext>();
   const [view, setView] = useState<View>("split");
   const [payloadTick, setPayloadTick] = useState(0);
@@ -66,7 +65,18 @@ export function Room() {
 
   return (
     <>
-      <MetricsPanel metrics={metrics} players={players} selfId={playerId} />
+      <Card className="flex flex-col gap-2">
+        <h2 className="m-0 text-sm font-extrabold uppercase tracking-[0.14em] text-muted-foreground">
+          自分のスコア
+        </h2>
+        {metrics.length === 0 ? (
+          <p className="m-0 text-sm text-muted-foreground">
+            ホストがスタートするとここに表示されます。
+          </p>
+        ) : (
+          <MetricsPanel metrics={metrics} players={players} selfId={playerId} />
+        )}
+      </Card>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 flex-wrap items-center gap-1.5">
@@ -82,25 +92,13 @@ export function Room() {
             </Badge>
           ))}
         </div>
-        <div className="flex shrink-0 items-center gap-1.5">
-          <Button
-            type="button"
-            variant="outline"
-            size="pill"
-            className="w-auto"
-            onClick={() => startRoom(code).catch(() => {})}
-          >
-            <RefreshCw size={13} />
-            <span>リセット / スタート</span>
-          </Button>
-          <ViewToggle view={view} onChange={setView} />
-        </div>
+        <ViewToggle view={view} onChange={setView} />
       </div>
 
-      {/* Portrait phones stack the QR over the camera. Landscape phones
-          and md+ desktops split side by side: half the screen each is
-          how two players actually use this in person, kneeling
-          opposite each other or holding the phone sideways. */}
+      {/* Portrait phones stack the QR over the camera. Landscape phones and
+          md+ desktops split side by side: half the screen each is how two
+          players actually use this in person, kneeling opposite each other
+          or holding the phone sideways. */}
       <section
         aria-label="QR と撮影"
         className="flex min-h-0 flex-1 flex-col items-stretch gap-2.5 landscape:flex-row landscape:gap-3 md:flex-row md:gap-3"

@@ -21,11 +21,18 @@ export type HandlersAndPresets = {
   presets: Preset[];
 };
 
+export type JoinRole = "host" | "client";
+
 export type ApiClient = {
   listHandlersAndPresets: () => Promise<HandlersAndPresets>;
   createRoom: (handlerId: string, handlerConfig: unknown) => Promise<string>;
   getRoom: (code: string) => Promise<RoomSnapshot>;
-  joinRoom: (code: string, playerId: string, name: string) => Promise<RoomSnapshot>;
+  joinRoom: (
+    code: string,
+    playerId: string,
+    name: string,
+    role: JoinRole,
+  ) => Promise<RoomSnapshot>;
   startRoom: (code: string) => Promise<void>;
 };
 
@@ -59,12 +66,12 @@ export function createApiClient(fetchImpl: FetchLike): ApiClient {
       return (await res.json()) as RoomSnapshot;
     },
 
-    async joinRoom(code, playerId, name) {
+    async joinRoom(code, playerId, name, role) {
       const encoded = encodeURIComponent(code);
       const res = await fetchImpl(`/api/rooms/${encoded}/join`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ playerId, name }),
+        body: JSON.stringify({ playerId, name, role }),
       });
       if (!res.ok) throw new Error(`join failed: ${res.status}`);
       // join のレスポンスは破棄して、最新 state を別 GET で取り直す

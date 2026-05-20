@@ -6,7 +6,8 @@ import { cn } from "@qr-relay/ui/cn";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { createRoom, listHandlersAndPresets } from "../lib/api.js";
+import { createRoom, joinRoom, listHandlersAndPresets } from "../lib/api.js";
+import { ensurePlayerName, getPlayerId, setRole } from "../lib/identity.js";
 
 export function NewRoom() {
   const navigate = useNavigate();
@@ -31,6 +32,10 @@ export function NewRoom() {
     setError(null);
     try {
       const code = await createRoom("relay", preset.rule);
+      // Mark this device as the host BEFORE navigating so RoomLayout's role
+      // lookup resolves on first render and we go straight into HostRoom.
+      setRole(code, "host");
+      await joinRoom(code, getPlayerId(), ensurePlayerName(), "host");
       navigate(`/r/${encodeURIComponent(code)}`);
     } catch (err) {
       setError(String(err));

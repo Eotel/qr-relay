@@ -28,7 +28,7 @@ function makeStored(playerIds: string[] = ["p1", "p2"]): Stored {
   if (init.kind !== "ok") throw new Error(`init failed in fixture: ${JSON.stringify(init.body)}`);
   let stored = init.stored;
   for (const id of playerIds) {
-    stored = reduceJoin(stored, { playerId: id, name: id }, NOW - 500);
+    stored = reduceJoin(stored, { playerId: id, name: id, role: "client" }, NOW - 500);
   }
   const started = reduceStart(stored, NOW - 100);
   return started.stored;
@@ -53,6 +53,7 @@ describe("reduceInit", () => {
       expect(r.stored.meta.code).toBe("ABC123");
       expect(r.stored.meta.createdAt).toBe(NOW);
       expect(r.stored.meta.startedAt).toBeNull();
+      expect(r.stored.meta.hostId).toBeNull();
       expect(r.stored.players).toEqual([]);
     }
   });
@@ -89,7 +90,7 @@ describe("reduceJoin", () => {
   it("新規プレイヤーを追加する (immutable)", () => {
     const stored = makeStored([]);
     const before = stored.players.length;
-    const next = reduceJoin(stored, { playerId: "p1", name: "Alice" }, NOW);
+    const next = reduceJoin(stored, { playerId: "p1", name: "Alice", role: "client" }, NOW);
     expect(next.players).toHaveLength(before + 1);
     expect(next.players[before]).toMatchObject({ id: "p1", name: "Alice", joinedAt: NOW });
     expect(stored.players).toHaveLength(before); // 元は変わらない
@@ -97,26 +98,48 @@ describe("reduceJoin", () => {
 
   it("既存プレイヤーの name 変更で同 id のレコードを差し替え", () => {
     let stored = makeStored([]);
-    stored = reduceJoin(stored, { playerId: "p1", name: "Alice" }, NOW);
-    const updated = reduceJoin(stored, { playerId: "p1", name: "Alice2" }, NOW + 1);
+    stored = reduceJoin(stored, { playerId: "p1", name: "Alice", role: "client" }, NOW);
+    const updated = reduceJoin(
+      stored,
+      { playerId: "p1", name: "Alice2", role: "client" },
+      NOW + 1,
+    );
     expect(updated.players).toHaveLength(1);
     expect(updated.players[0]?.name).toBe("Alice2");
   });
 
   it("既存プレイヤー同 name なら no-op", () => {
     let stored = makeStored([]);
-    stored = reduceJoin(stored, { playerId: "p1", name: "Alice" }, NOW);
+    stored = reduceJoin(stored, { playerId: "p1", name: "Alice", role: "client" }, NOW);
     const before = stored.players;
-    const next = reduceJoin(stored, { playerId: "p1", name: "Alice" }, NOW + 1);
+    const next = reduceJoin(stored, { playerId: "p1", name: "Alice", role: "client" }, NOW + 1);
     expect(next.players).toEqual(before);
+  });
+
+  it("role=host は players に追加せず hostId を確定する", () => {
+    const stored = makeStored([]);
+    const next = reduceJoin(stored, { playerId: "h1", name: "Host", role: "host" }, NOW);
+    expect(next.players).toHaveLength(0);
+    expect(next.meta.hostId).toBe("h1");
+  });
+
+  it("role=host を 2 回呼んでも最初の hostId を維持(client は変わらず追加)", () => {
+    let stored = makeStored([]);
+    stored = reduceJoin(stored, { playerId: "h1", name: "Host", role: "host" }, NOW);
+    stored = reduceJoin(stored, { playerId: "h2", name: "Host2", role: "host" }, NOW + 1);
+    expect(stored.meta.hostId).toBe("h1");
+    expect(stored.players).toHaveLength(0);
+    stored = reduceJoin(stored, { playerId: "p1", name: "Alice", role: "client" }, NOW + 2);
+    expect(stored.players).toHaveLength(1);
+    expect(stored.meta.hostId).toBe("h1");
   });
 });
 
 describe("reduceStart", () => {
   it("startedAt と initialState をセットし、metrics を返す", () => {
     let stored = makeStored([]);
-    stored = reduceJoin(stored, { playerId: "p1", name: "A" }, NOW - 10);
-    stored = reduceJoin(stored, { playerId: "p2", name: "B" }, NOW - 5);
+    stored = reduceJoin(stored, { playerId: "p1", name: "A", role: "client" }, NOW - 10);
+    stored = reduceJoin(stored, { playerId: "p2", name: "B", role: "client" }, NOW - 5);
     const r = reduceStart(stored, NOW);
     expect(r.stored.meta.startedAt).toBe(NOW);
     expect(r.stored.meta.endedAt).toBeNull();
@@ -238,6 +261,40 @@ describe("reduceScan", () => {
     expect(r.kind).toBe("ok");
     expect(baseNonces.size).toBe(0);
     expect(stored.meta.startedAt).not.toBeNull(); // fixture が start 済みであることの担保
+  });
+
+  it("ホストが scan を発行しようとすると error/host cannot scan", () => {
+    let stored = makeStored(["p1", "p2"]);
+    stored = {
+      ...stored,
+      meta: { ...stored.meta, hostId: "host-1" },
+    };
+    const r = reduceScan({
+      stored,
+      scannerId: "host-1",
+      payload: payload({ pid: "p1", nonce: "n1" }),
+      recentNonces: new Map(),
+      now: NOW,
+    });
+    expect(r.kind).toBe("error");
+    if (r.kind === "error") expect(r.message).toMatch(/host cannot scan/);
+  });
+
+  it("ホストの QR (pid=hostId) をスキャンしようとすると error/cannot scan host", () => {
+    let stored = makeStored(["p1", "p2"]);
+    stored = {
+      ...stored,
+      meta: { ...stored.meta, hostId: "host-1" },
+    };
+    const r = reduceScan({
+      stored,
+      scannerId: "p1",
+      payload: payload({ pid: "host-1", nonce: "n2" }),
+      recentNonces: new Map(),
+      now: NOW,
+    });
+    expect(r.kind).toBe("error");
+    if (r.kind === "error") expect(r.message).toMatch(/cannot scan host/);
   });
 
   it("期限切れ nonce は GC され同 nonce が再利用可能になる", () => {

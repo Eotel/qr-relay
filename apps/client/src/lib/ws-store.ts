@@ -12,19 +12,23 @@ export type WsMessage =
 
 export type PlayerLite = { id: string; name: string; joinedAt: number };
 
+export type WsRole = "host" | "client";
+
 export type WsStoreState = {
   connected: boolean;
   players: PlayerLite[];
   state: unknown;
   metrics: Metric[];
   room: RoomInfo | null;
+  role: WsRole | null;
   lastError: string | null;
   socket: WebSocket | null;
   reconnectTimer: TimerId | null;
-  connect: (code: string, playerId: string) => void;
+  connect: (code: string, playerId: string, role: WsRole) => void;
   disconnect: () => void;
   send: (msg: unknown) => void;
   setRoom: (room: RoomInfo) => void;
+  setRole: (role: WsRole | null) => void;
   setSnapshot: (snap: { players?: PlayerLite[]; state?: unknown; metrics?: Metric[] }) => void;
 };
 
@@ -55,14 +59,15 @@ export function createWsStore(deps: WsStoreDeps): WsStore {
     state: null,
     metrics: [],
     room: null,
+    role: null,
     lastError: null,
     socket: null,
     reconnectTimer: null,
 
-    connect(code, playerId) {
+    connect(code, playerId, role) {
       get().disconnect();
       const ws = deps.socketFactory(buildUrl(code, playerId));
-      set({ socket: ws, lastError: null });
+      set({ socket: ws, role, lastError: null });
 
       ws.addEventListener("open", () => {
         set({ connected: true });
@@ -84,7 +89,7 @@ export function createWsStore(deps: WsStoreDeps): WsStore {
       });
       ws.addEventListener("close", () => {
         set({ connected: false, socket: null });
-        const timer = clock.setTimeout(() => get().connect(code, playerId), reconnectDelayMs);
+        const timer = clock.setTimeout(() => get().connect(code, playerId, role), reconnectDelayMs);
         set({ reconnectTimer: timer });
       });
       ws.addEventListener("error", () => {
@@ -115,6 +120,10 @@ export function createWsStore(deps: WsStoreDeps): WsStore {
 
     setRoom(room) {
       set({ room });
+    },
+
+    setRole(role) {
+      set({ role });
     },
 
     setSnapshot(snap) {

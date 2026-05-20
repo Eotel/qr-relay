@@ -99,14 +99,14 @@ describe("createWsStore", () => {
 
   it("connect: socketFactory を呼んで URL を組み立てる", () => {
     const { useWs, sockets } = setup();
-    useWs.getState().connect("ABC", "p1");
+    useWs.getState().connect("ABC", "p1", "client");
     expect(sockets).toHaveLength(1);
     expect(sockets[0]?.url).toBe("ws://test/ws/ABC?pid=p1");
   });
 
   it("open イベントで connected=true", () => {
     const { useWs, sockets } = setup();
-    useWs.getState().connect("ABC", "p1");
+    useWs.getState().connect("ABC", "p1", "client");
     expect(useWs.getState().connected).toBe(false);
     sockets[0]?.emitOpen();
     expect(useWs.getState().connected).toBe(true);
@@ -114,7 +114,7 @@ describe("createWsStore", () => {
 
   it("state メッセージで players/state/metrics を更新", () => {
     const { useWs, sockets } = setup();
-    useWs.getState().connect("ABC", "p1");
+    useWs.getState().connect("ABC", "p1", "client");
     sockets[0]?.emitOpen();
     sockets[0]?.emitMessage({
       t: "state",
@@ -130,7 +130,7 @@ describe("createWsStore", () => {
 
   it("players メッセージは players だけ更新", () => {
     const { useWs, sockets } = setup();
-    useWs.getState().connect("ABC", "p1");
+    useWs.getState().connect("ABC", "p1", "client");
     sockets[0]?.emitOpen();
     sockets[0]?.emitMessage({ t: "players", players: [{ id: "p2", name: "Bob", joinedAt: 0 }] });
     expect(useWs.getState().players[0]?.id).toBe("p2");
@@ -138,7 +138,7 @@ describe("createWsStore", () => {
 
   it("error メッセージで lastError をセット", () => {
     const { useWs, sockets } = setup();
-    useWs.getState().connect("ABC", "p1");
+    useWs.getState().connect("ABC", "p1", "client");
     sockets[0]?.emitOpen();
     sockets[0]?.emitMessage({ t: "error", message: "boom" });
     expect(useWs.getState().lastError).toBe("boom");
@@ -146,7 +146,7 @@ describe("createWsStore", () => {
 
   it("close 後、clock.setTimeout 経由で再接続する", () => {
     const { useWs, sockets, pending, advance } = setup();
-    useWs.getState().connect("ABC", "p1");
+    useWs.getState().connect("ABC", "p1", "client");
     sockets[0]?.emitOpen();
     sockets[0]?.emit("close");
     expect(useWs.getState().connected).toBe(false);
@@ -158,7 +158,7 @@ describe("createWsStore", () => {
 
   it("disconnect: 予約済みの再接続タイマーをキャンセル", () => {
     const { useWs, sockets, pending } = setup();
-    useWs.getState().connect("ABC", "p1");
+    useWs.getState().connect("ABC", "p1", "client");
     sockets[0]?.emit("close");
     expect(pending).toHaveLength(1);
     useWs.getState().disconnect();
@@ -167,7 +167,7 @@ describe("createWsStore", () => {
 
   it("send: socket が OPEN のときだけ JSON を送る", () => {
     const { useWs, sockets } = setup();
-    useWs.getState().connect("ABC", "p1");
+    useWs.getState().connect("ABC", "p1", "client");
     useWs.getState().send({ t: "ping" });
     expect(sockets[0]?.sent).toEqual([]);
     sockets[0]?.emitOpen();
@@ -177,9 +177,24 @@ describe("createWsStore", () => {
 
   it("壊れた JSON メッセージは無視 (例外を投げない)", () => {
     const { useWs, sockets } = setup();
-    useWs.getState().connect("ABC", "p1");
+    useWs.getState().connect("ABC", "p1", "client");
     sockets[0]?.emitOpen();
     expect(() => sockets[0]?.emit("message", { data: "not json" } as unknown)).not.toThrow();
+  });
+
+  it("connect 時に渡した role を保持する", () => {
+    const { useWs } = setup();
+    expect(useWs.getState().role).toBeNull();
+    useWs.getState().connect("ABC", "host-1", "host");
+    expect(useWs.getState().role).toBe("host");
+  });
+
+  it("setRole で role を更新できる", () => {
+    const { useWs } = setup();
+    useWs.getState().setRole("client");
+    expect(useWs.getState().role).toBe("client");
+    useWs.getState().setRole(null);
+    expect(useWs.getState().role).toBeNull();
   });
 
   it("setSnapshot で部分更新できる", () => {

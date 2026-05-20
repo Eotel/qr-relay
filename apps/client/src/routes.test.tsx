@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { isValidElement } from "react";
 import { matchRoutes } from "react-router-dom";
 import { describe, expect, it } from "vitest";
-import { RoomLayoutLazy, RoomLazy, ScoreboardLazy, appRouteObjects } from "./routes.js";
+import { RoomLayoutLazy, RoomRootLazy, ScoreboardLazy, appRouteObjects } from "./routes.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -13,13 +13,13 @@ function elementType(node: unknown): unknown {
 }
 
 describe("appRouteObjects", () => {
-  it("nests Room as the index child of RoomLayout for /r/:code", () => {
+  it("nests RoomRoot as the index child of RoomLayout for /r/:code", () => {
     const matches = matchRoutes(appRouteObjects, "/r/ABC123");
     expect(matches).not.toBeNull();
     const chain = matches ?? [];
     expect(chain).toHaveLength(2);
     expect(elementType(chain[0]?.route.element)).toBe(RoomLayoutLazy);
-    expect(elementType(chain[1]?.route.element)).toBe(RoomLazy);
+    expect(elementType(chain[1]?.route.element)).toBe(RoomRootLazy);
     expect(chain[1]?.route.index).toBe(true);
   });
 
@@ -34,11 +34,13 @@ describe("appRouteObjects", () => {
 });
 
 describe("outlet context coupling", () => {
-  // Room/Scoreboard explicitly destructure `playerId` from useOutletContext().
-  // If they ever stop nesting under RoomLayout, runtime crashes — so we
-  // hard-couple the structural test above to the actual context usage here.
+  // HostRoom / ClientRoom / Scoreboard explicitly destructure RoomOutletContext
+  // from useOutletContext(). If they ever stop nesting under RoomLayout, runtime
+  // crashes — so we hard-couple the structural test above to actual context usage.
   const sources: Array<readonly [string, string]> = [
-    ["Room.tsx", join(here, "routes", "Room.tsx")],
+    ["RoomRoot.tsx", join(here, "routes", "RoomRoot.tsx")],
+    ["HostRoom.tsx", join(here, "routes", "HostRoom.tsx")],
+    ["ClientRoom.tsx", join(here, "routes", "ClientRoom.tsx")],
     ["Scoreboard.tsx", join(here, "routes", "Scoreboard.tsx")],
   ];
 

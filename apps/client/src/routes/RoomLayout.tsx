@@ -1,22 +1,24 @@
 import { Badge } from "@qr-relay/ui/badge";
 import { Card } from "@qr-relay/ui/card";
 import { cn } from "@qr-relay/ui/cn";
-import { Camera, Trophy } from "lucide-react";
+import { Camera, Home as HomeIcon, Trophy } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { NavLink, Outlet, useParams } from "react-router-dom";
+import { Link, NavLink, Navigate, Outlet, useParams } from "react-router-dom";
 import { joinRoom } from "../lib/api.js";
-import { ensurePlayerName, getPlayerId } from "../lib/identity.js";
+import { ensurePlayerName, getPlayerId, getRole } from "../lib/identity.js";
 import { useWs } from "../lib/ws.js";
 
 export type RoomOutletContext = {
   playerId: string;
   code: string;
+  role: "host" | "client";
 };
 
 export function RoomLayout() {
   const { code = "" } = useParams<{ code: string }>();
   const playerId = useMemo(() => getPlayerId(), []);
   const playerName = useMemo(() => ensurePlayerName(), []);
+  const role = useMemo(() => getRole(code), [code]);
   const [joinError, setJoinError] = useState<string | null>(null);
 
   const connected = useWs((s) => s.connected);
@@ -27,14 +29,15 @@ export function RoomLayout() {
   const disconnect = useWs((s) => s.disconnect);
 
   useEffect(() => {
+    if (!role) return;
     let cancelled = false;
     (async () => {
       try {
-        const snap = await joinRoom(code, playerId, playerName);
+        const snap = await joinRoom(code, playerId, playerName, role);
         if (cancelled) return;
         setRoom(snap.room);
         setSnapshot({ players: snap.players, state: snap.state, metrics: snap.metrics });
-        connect(code, playerId);
+        connect(code, playerId, role);
       } catch (err) {
         if (!cancelled) setJoinError(String(err));
       }
@@ -43,7 +46,13 @@ export function RoomLayout() {
       cancelled = true;
       disconnect();
     };
-  }, [code, playerId, playerName, connect, disconnect, setRoom, setSnapshot]);
+  }, [code, playerId, playerName, role, connect, disconnect, setRoom, setSnapshot]);
+
+  if (!role) {
+    // Role unresolved (direct nav to /r/CODE without joining via Home/NewRoom).
+    // Send the user back to Home so they can choose host or client.
+    return <Navigate to="/" replace />;
+  }
 
   const tabClass = ({ isActive }: { isActive: boolean }) =>
     cn(
@@ -55,14 +64,33 @@ export function RoomLayout() {
         : "bg-muted/40 text-foreground hover:bg-muted/60",
     );
 
-  const context: RoomOutletContext = { playerId, code };
+  const context: RoomOutletContext = { playerId, code, role };
+  const roleLabel = role === "host" ? "HOST" : "PLAYER";
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-[720px] flex-col gap-3 px-3 pt-[calc(0.75rem+env(safe-area-inset-top))] pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:max-w-[1200px]">
+    <main
+      className={cn(
+        "mx-auto flex min-h-dvh max-w-[720px] flex-col gap-3 px-3 pt-[calc(0.75rem+env(safe-area-inset-top))] pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:max-w-[1200px]",
+        // Host gets the "Stage" dark register by default — large, calm operator view.
+        role === "host" && "dark",
+      )}
+    >
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <Badge variant="host" size="chip">
-            ROOM
+          <Link
+            to="/"
+            aria-label="ホームに戻る"
+            className={cn(
+              "inline-flex size-8 items-center justify-center rounded-full bg-muted/40 text-foreground transition-colors hover:bg-muted/60",
+              "pointer-coarse:size-11",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background",
+              "dark:bg-white/[0.06] dark:hover:bg-white/[0.12]",
+            )}
+          >
+            <HomeIcon size={14} aria-hidden />
+          </Link>
+          <Badge variant={role === "host" ? "host" : "player"} size="chip">
+            {roleLabel}
           </Badge>
           <strong className="text-base font-extrabold tracking-[0.18em]">{code}</strong>
           <ConnectionPill connected={connected} />

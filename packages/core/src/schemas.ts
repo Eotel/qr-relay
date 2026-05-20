@@ -12,9 +12,13 @@ export const ScanPayloadV1 = z.object({
 
 export type ScanPayloadV1 = z.infer<typeof ScanPayloadV1>;
 
+export const PlayerRole = z.enum(["host", "client"]);
+export type PlayerRole = z.infer<typeof PlayerRole>;
+
 export const JoinRequest = z.object({
   playerId: z.string().min(1),
   name: z.string().min(1).max(40),
+  role: PlayerRole,
 });
 
 export type JoinRequest = z.infer<typeof JoinRequest>;

@@ -2,7 +2,10 @@ import React, { Suspense } from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import "@qr-relay/ui/styles.css";
+import { initInstallPrompt } from "./lib/install-prompt.js";
 import { AppRoutes } from "./routes.js";
+
+initInstallPrompt();
 
 function RouteFallback() {
   return (

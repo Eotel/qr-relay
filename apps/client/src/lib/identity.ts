@@ -1,5 +1,25 @@
 const ID_KEY = "qr-relay:player-id";
 const NAME_KEY = "qr-relay:player-name";
+const ROLE_KEY_PREFIX = "qr-relay:role:";
+
+export type Role = "host" | "client";
+
+function roleKey(code: string): string {
+  return `${ROLE_KEY_PREFIX}${code}`;
+}
+
+export function getRole(code: string): Role | null {
+  const raw = localStorage.getItem(roleKey(code));
+  return raw === "host" || raw === "client" ? raw : null;
+}
+
+export function setRole(code: string, role: Role): void {
+  localStorage.setItem(roleKey(code), role);
+}
+
+export function clearRole(code: string): void {
+  localStorage.removeItem(roleKey(code));
+}
 
 function uuid(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {

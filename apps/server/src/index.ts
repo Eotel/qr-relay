@@ -66,14 +66,16 @@ app.post("/api/rooms/:code/join", async (c) => {
   const body = (await c.req.json().catch(() => null)) as {
     playerId?: string;
     name?: string;
+    role?: "host" | "client";
   } | null;
   if (!body?.playerId || !body.name) return c.json({ error: "bad request" }, 400);
+  const role: "host" | "client" = body.role === "host" ? "host" : "client";
   const id = c.env.ROOM.idFromName(`room:${code}`);
   const stub = c.env.ROOM.get(id);
   const res = await stub.fetch("https://ro/join", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ playerId: body.playerId, name: body.name }),
+    body: JSON.stringify({ playerId: body.playerId, name: body.name, role }),
   });
   return new Response(await res.text(), {
     status: res.status,

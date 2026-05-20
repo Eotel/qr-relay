@@ -8,7 +8,9 @@ export const NewRoomLazy = lazy(() =>
 export const RoomLayoutLazy = lazy(() =>
   import("./routes/RoomLayout.js").then((m) => ({ default: m.RoomLayout })),
 );
-export const RoomLazy = lazy(() => import("./routes/Room.js").then((m) => ({ default: m.Room })));
+export const RoomRootLazy = lazy(() =>
+  import("./routes/RoomRoot.js").then((m) => ({ default: m.RoomRoot })),
+);
 export const ScoreboardLazy = lazy(() =>
   import("./routes/Scoreboard.js").then((m) => ({ default: m.Scoreboard })),
 );
@@ -20,7 +22,7 @@ export const appRouteObjects: RouteObject[] = [
     path: "/r/:code",
     element: <RoomLayoutLazy />,
     children: [
-      { index: true, element: <RoomLazy /> },
+      { index: true, element: <RoomRootLazy /> },
       { path: "scoreboard", element: <ScoreboardLazy /> },
     ],
   },

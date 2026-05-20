@@ -1,5 +1,5 @@
 import type { Player } from "@qr-relay/core";
-import { type ScanPayloadV1, WsClientMsg } from "@qr-relay/core";
+import { JoinRequest, type ScanPayloadV1, WsClientMsg } from "@qr-relay/core";
 import "@qr-relay/handlers";
 import { type Clock, systemClock } from "./ports.js";
 import {
@@ -64,10 +64,14 @@ export class RoomDurableObject implements DurableObject {
   }
 
   private async handleJoin(request: Request): Promise<Response> {
-    const body = (await request.json()) as { playerId: string; name: string };
+    const raw = await request.json();
+    const parsed = JoinRequest.safeParse(raw);
+    if (!parsed.success) {
+      return json({ error: "invalid join request", issues: parsed.error.issues }, 400);
+    }
     const stored = await this.loadStored();
     if (!stored) return json({ error: "room not initialized" }, 404);
-    const next = reduceJoin(stored, body, this.clock.now());
+    const next = reduceJoin(stored, parsed.data, this.clock.now());
     await this.saveStored(next);
     this.broadcast({ t: "players", players: next.players });
     return json({ ok: true, room: next.meta, players: next.players });
