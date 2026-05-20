@@ -138,7 +138,9 @@ describe("relay handler - steal", () => {
     for (let i = 0; i < 15; i++) {
       s = scan(s, rule0, players2[0] as Player, players2[1] as Player, i);
     }
-    const slot2 = slotOf(s, players2[1]!.id);
+    const p2 = players2[1];
+    if (!p2) throw new Error("expected p2");
+    const slot2 = slotOf(s, p2.id);
     expect(slot2.kind === "score" && slot2.amount).toBe(0);
   });
 });
