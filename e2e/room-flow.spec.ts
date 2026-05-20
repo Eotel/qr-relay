@@ -5,7 +5,7 @@ async function gotoFreshHostRoom(page: import("@playwright/test").Page) {
   await page.getByRole("button", { name: "ホストを立ち上げる" }).click();
   await page.waitForURL(/\/new$/);
   await page.getByRole("button", { name: /このプリセットで作成|作成中/ }).click();
-  await page.waitForURL(/\/r\/[A-Z0-9]+$/, { timeout: 15_000 });
+  await page.waitForURL(/\/r\/[A-Z0-9]+\/host$/, { timeout: 15_000 });
 }
 
 test("home → 新規ルーム作成 → ホスト画面が描画され pageerror が出ない", async ({ page }) => {
@@ -20,7 +20,7 @@ test("home → 新規ルーム作成 → ホスト画面が描画され pageerro
   await expect(page.getByText("プリセットを選ぶ", { exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: /このプリセットで作成|作成中/ }).click();
-  await page.waitForURL(/\/r\/[A-Z0-9]+$/, { timeout: 15_000 });
+  await page.waitForURL(/\/r\/[A-Z0-9]+\/host$/, { timeout: 15_000 });
 
   // RoomLayout 固有 — HOST バッジ + dashboard 内蔵 ViewSwitcher が出ていれば
   // outlet context は機能している。RoomLayout 上部の "表示切替" nav は host では

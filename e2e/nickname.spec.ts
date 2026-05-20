@@ -15,7 +15,7 @@ test("Home → 新規ルーム作成: 入力した名前がそのままホスト
   await page.getByRole("button", { name: "ホストを立ち上げる" }).click();
   await page.waitForURL(/\/new$/);
   await page.getByRole("button", { name: /このプリセットで作成|作成中/ }).click();
-  await page.waitForURL(/\/r\/[A-Z0-9]+$/, { timeout: 15_000 });
+  await page.waitForURL(/\/r\/[A-Z0-9]+\/host$/, { timeout: 15_000 });
 
   const stored = await page.evaluate(() => localStorage.getItem("qr-relay:player-name"));
   expect(stored).toBe("ホスト太郎");
@@ -30,7 +30,7 @@ test("同名で別ブラウザから参加すると (2) が付与される", asy
   await host.getByRole("button", { name: "ホストを立ち上げる" }).click();
   await host.waitForURL(/\/new$/);
   await host.getByRole("button", { name: /このプリセットで作成|作成中/ }).click();
-  await host.waitForURL(/\/r\/[A-Z0-9]+$/, { timeout: 15_000 });
+  await host.waitForURL(/\/r\/[A-Z0-9]+\/host$/, { timeout: 15_000 });
   const url = host.url();
   const code = url.match(/\/r\/([A-Z0-9]+)/)?.[1];
   if (!code) throw new Error("room code not captured");

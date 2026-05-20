@@ -7,7 +7,7 @@ test("Host stage dashboard: ViewSwitcher で 5 mode を行き来できる", asyn
   await page.getByRole("button", { name: "ホストを立ち上げる" }).click();
   await page.waitForURL(/\/new$/);
   await page.getByRole("button", { name: /このプリセットで作成|作成中/ }).click();
-  await page.waitForURL(/\/r\/[A-Z0-9]+$/, { timeout: 15_000 });
+  await page.waitForURL(/\/r\/[A-Z0-9]+\/host$/, { timeout: 15_000 });
 
   // ViewSwitcher は 5 つの tab を持つ
   const switcher = page.getByRole("tablist", { name: "表示の切替" });
@@ -51,7 +51,7 @@ test("Client: RoomLayout 上部の 2-tab は残っており scoreboard へ遷移
   await host.getByRole("button", { name: "ホストを立ち上げる" }).click();
   await host.waitForURL(/\/new$/);
   await host.getByRole("button", { name: /このプリセットで作成|作成中/ }).click();
-  await host.waitForURL(/\/r\/[A-Z0-9]+$/, { timeout: 15_000 });
+  await host.waitForURL(/\/r\/[A-Z0-9]+\/host$/, { timeout: 15_000 });
   const code = host.url().match(/\/r\/([A-Z0-9]+)/)?.[1];
   if (!code) throw new Error("room code not captured");
 

@@ -26,7 +26,7 @@ async function bootClientAtSize(
   await host.getByRole("button", { name: "ホストを立ち上げる" }).click();
   await host.waitForURL(/\/new$/);
   await host.getByRole("button", { name: /このプリセットで作成|作成中/ }).click();
-  await host.waitForURL(/\/r\/[A-Z0-9]+$/, { timeout: 15_000 });
+  await host.waitForURL(/\/r\/[A-Z0-9]+\/host$/, { timeout: 15_000 });
   const code = host.url().match(/\/r\/([A-Z0-9]+)/)?.[1];
   if (!code) throw new Error("room code not captured");
   await host.getByRole("button", { name: /^スタート$/ }).click();

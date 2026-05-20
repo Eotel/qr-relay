@@ -28,6 +28,12 @@ export function clearRole(code: string): void {
  * shouldn't get demoted by re-scanning their own QR). Otherwise pin the
  * role to "client" so /r/CODE landings always join as a player.
  *
+ * URL = intent, localStorage = authority: landing on `/r/CODE/host` without
+ * a stored host claim still resolves to client. The `/host` URL segment is
+ * decorative (so a host's bookmark / shared link can self-describe), not a
+ * promotion path — otherwise a host could escalate someone by sharing the
+ * `/host` link, or self-demote by losing localStorage.
+ *
  * Returns the resolved role so the caller can act on it without re-reading.
  */
 export function acceptInviteRole(code: string): Role {

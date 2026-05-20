@@ -55,7 +55,10 @@ export function NewRoom() {
       // PWA cold start can come back in one tap.
       setRecentHostCode(code);
       await joinRoom(code, getPlayerId(), ensurePlayerName(), "host");
-      navigate(`/r/${encodeURIComponent(code)}`);
+      // Host lands on `/r/CODE/host` so the URL bar visibly differs from a
+      // client's `/r/CODE`. Intent-only — RoomLayout still trusts the
+      // localStorage host claim set above (see acceptInviteRole in identity.ts).
+      navigate(`/r/${encodeURIComponent(code)}/host`);
     } catch (err) {
       setError(String(err));
       setCreating(false);

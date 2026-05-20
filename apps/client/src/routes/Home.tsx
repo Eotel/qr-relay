@@ -43,7 +43,9 @@ export function Home() {
       // Re-affirm the host claim before RoomLayout reads it. Idempotent if it
       // was already set, defensive if localStorage was partially cleared.
       setRole(recentHostCode, "host");
-      navigate(`/r/${encodeURIComponent(recentHostCode)}`);
+      // Host lands on `/r/CODE/host` to match NewRoom's create flow — keeps
+      // the host URL distinct from a client's `/r/CODE`.
+      navigate(`/r/${encodeURIComponent(recentHostCode)}/host`);
     } catch {
       clearRecentHostCode(recentHostCode);
       setRecentHostCodeState(null);

@@ -129,6 +129,21 @@ describe("acceptInviteRole", () => {
     expect(acceptInviteRole("ABC")).toBe("client");
     expect(getRole("ABC")).toBe("client");
   });
+
+  // URL = intent, localStorage = authority. The /r/CODE/host URL segment is
+  // decorative (lets a host's bookmark self-describe). It must NOT promote a
+  // visitor to host when the device has no stored host claim — otherwise the
+  // host could escalate someone by sharing the /host link, or self-demote by
+  // losing localStorage. The function is URL-agnostic by design: it sees only
+  // the code, so the same contract holds whether the caller landed on
+  // /r/CODE or /r/CODE/host.
+  it("treats /r/CODE/host the same as /r/CODE — URL never promotes to host without a stored claim", async () => {
+    const { acceptInviteRole, getRole } = await loadIdentity();
+    // Simulate a cold /r/CODE/host landing (e.g. tapping a shared host link
+    // on a device that has never opened this room): no role in storage.
+    expect(acceptInviteRole("ABC")).toBe("client");
+    expect(getRole("ABC")).toBe("client");
+  });
 });
 
 describe("recent host code", () => {

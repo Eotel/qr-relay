@@ -13,6 +13,7 @@
 
 | やりたいこと | 参照先 |
 |---|---|
+| ルームの URL 規約 | host = `/r/CODE/host`、参加者 = `/r/CODE` (URL = intent / localStorage = authority。`/host` は装飾で、`lib/identity.ts` の `acceptInviteRole` が role を最終決定する) |
 | 新しい遊び方 (プリセット) を追加 | [docs/design-docs/scan-handler-contract.md](docs/design-docs/scan-handler-contract.md) の「新プリセット追加 5 ステップ」 |
 | relay で表現できない novel ロジックを足す | 同上「novel handler を追加」セクション |
 | プリセットの仕様確認 | [docs/product-specs/presets.md](docs/product-specs/presets.md) |
