@@ -1,6 +1,8 @@
+import type { ValueSlot } from "@qr-relay/handlers";
 import { cn } from "@qr-relay/ui/cn";
 import { Flame } from "lucide-react";
-import type { ValueSlot } from "@qr-relay/handlers";
+import { memo, useEffect, useRef, useState } from "react";
+import { computeGridShape } from "../../lib/host-view.js";
 import type { PlayerLite } from "../../lib/ws-store.js";
 
 type Props = {
@@ -20,16 +22,40 @@ type ValuesShape = { values?: Record<string, ValueSlot | undefined> | null };
  * tile can be reused; intensity could be added later but plain "any value
  * yet?" is enough for the audience-reading test.
  */
-export function InfectionGridTile({ players, state }: Props) {
+export const InfectionGridTile = memo(function InfectionGridTile({ players, state }: Props) {
   const values = readValues(state);
   const sorted = [...players].sort((a, b) => a.joinedAt - b.joinedAt);
   const holderCount = sorted.reduce((n, p) => (isLit(values[p.id]) ? n + 1 : n), 0);
+
+  const gridRef = useRef<HTMLUListElement | null>(null);
+  // Initial guess matches the host dashboard's 16:9 layout so the first paint
+  // is already close; ResizeObserver corrects it once the container measures.
+  const [aspect, setAspect] = useState(16 / 9);
+
+  useEffect(() => {
+    const el = gridRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+      const { width, height } = entry.contentRect;
+      if (width > 0 && height > 0) setAspect(width / height);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const { cols, rows } = computeGridShape(sorted.length, aspect);
+  const gridStyle = {
+    gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+    gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
+  };
 
   return (
     <section
       aria-label="保持状況グリッド"
       className={cn(
-        "flex h-full min-h-0 flex-col gap-3 rounded-[var(--radius-lg)]",
+        "flex h-full min-h-0 flex-col gap-3 overflow-hidden rounded-[var(--radius-lg)]",
         "border border-white/10 bg-white/[0.04] p-5",
       )}
     >
@@ -48,7 +74,13 @@ export function InfectionGridTile({ players, state }: Props) {
           参加者を待機中
         </p>
       ) : (
-        <ul className="m-0 grid min-h-0 flex-1 auto-rows-fr grid-cols-2 gap-2 overflow-hidden p-0 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+        <ul
+          ref={gridRef}
+          data-cols={cols}
+          data-rows={rows}
+          style={gridStyle}
+          className="m-0 grid min-h-0 flex-1 gap-2 overflow-hidden p-0"
+        >
           {sorted.map((p) => {
             const slot = values[p.id];
             const lit = isLit(slot);
@@ -78,7 +110,7 @@ export function InfectionGridTile({ players, state }: Props) {
       )}
     </section>
   );
-}
+});
 
 function readValues(state: unknown): Record<string, ValueSlot> {
   if (!state || typeof state !== "object") return {};

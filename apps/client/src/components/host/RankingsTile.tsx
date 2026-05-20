@@ -1,6 +1,6 @@
 import { cn } from "@qr-relay/ui/cn";
 import { ArrowUpDown, ScanLine, Target } from "lucide-react";
-import { useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import type { RankedEntry, Rankings } from "../../lib/host-view.js";
 
 type SortOrder = "desc" | "asc";
@@ -24,7 +24,7 @@ type Props = {
  * Rows with count=0 receive a small 未参加 badge so dormant players are
  * obvious without a dedicated dormant view.
  */
-export function RankingsTile({ rankings, encounters }: Props) {
+export const RankingsTile = memo(function RankingsTile({ rankings, encounters }: Props) {
   const [outOrder, setOutOrder] = useState<SortOrder>("desc");
   const [inOrder, setInOrder] = useState<SortOrder>("desc");
 
@@ -58,7 +58,7 @@ export function RankingsTile({ rankings, encounters }: Props) {
       </div>
     </section>
   );
-}
+});
 
 function Header() {
   return (

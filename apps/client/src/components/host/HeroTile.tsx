@@ -25,7 +25,7 @@ export function HeroTile({ view, roomCode }: Props) {
     <section
       aria-label="今の主役"
       className={cn(
-        "flex h-full min-h-0 flex-col items-center justify-center gap-4 rounded-[var(--radius-lg)]",
+        "flex h-full min-h-0 flex-col items-center justify-center gap-4 overflow-hidden rounded-[var(--radius-lg)]",
         "border border-white/10 bg-white/[0.04] p-6 text-center",
       )}
     >
@@ -118,18 +118,23 @@ function Label({ children, icon }: { children: React.ReactNode; icon?: React.Rea
 }
 
 function ProgressBar({ value, max }: { value: number; max: number }) {
-  const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0;
+  // Animate via transform (GPU-composited) instead of width (layout-driven) so
+  // a token-many room with one scan per second doesn't run the layout pipeline
+  // on the dashboard region every 150 ms. Parent has overflow-hidden +
+  // rounded-full, so the inner rect doesn't need its own radius.
+  const ratio = max > 0 ? Math.min(1, value / max) : 0;
   return (
     <div
       role="progressbar"
+      tabIndex={-1}
       aria-valuemin={0}
       aria-valuemax={max}
       aria-valuenow={value}
       className="h-2 w-full max-w-[560px] overflow-hidden rounded-full bg-white/10"
     >
       <div
-        className="h-full rounded-full bg-[var(--team-red)] transition-[width] duration-150 ease-out"
-        style={{ width: `${pct}%` }}
+        className="h-full w-full origin-left bg-[var(--team-red)] transition-transform duration-150 ease-out"
+        style={{ transform: `scaleX(${ratio})` }}
       />
     </div>
   );

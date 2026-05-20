@@ -26,7 +26,7 @@ export function JoinQrTile({ code, variant }: Props) {
     <section
       aria-label="参加 QR"
       className={cn(
-        "flex h-full min-h-0 flex-col items-center justify-center gap-2 rounded-[var(--radius-lg)]",
+        "flex h-full min-h-0 flex-col items-center justify-center gap-2 overflow-hidden rounded-[var(--radius-lg)]",
         "border border-white/10 bg-white/[0.04] p-3 text-center",
         variant === "featured" && "p-5",
       )}

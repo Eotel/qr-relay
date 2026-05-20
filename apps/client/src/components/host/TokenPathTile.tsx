@@ -1,5 +1,6 @@
 import { cn } from "@qr-relay/ui/cn";
 import { ArrowRight, GitBranch } from "lucide-react";
+import { memo } from "react";
 import type { TokenPathStep } from "../../lib/host-view.js";
 
 type Props = {
@@ -17,7 +18,7 @@ type Props = {
  * the host (and the audience) cares about *what just happened* more than
  * the full history.
  */
-export function TokenPathTile({ chain, visibleSteps = 20 }: Props) {
+export const TokenPathTile = memo(function TokenPathTile({ chain, visibleSteps = 20 }: Props) {
   const hiddenCount = Math.max(0, chain.length - visibleSteps);
   const visible = chain.slice(hiddenCount);
 
@@ -25,7 +26,7 @@ export function TokenPathTile({ chain, visibleSteps = 20 }: Props) {
     <section
       aria-label="スキャン経路"
       className={cn(
-        "flex h-full min-h-0 flex-col gap-3 rounded-[var(--radius-lg)]",
+        "flex h-full min-h-0 flex-col gap-3 overflow-hidden rounded-[var(--radius-lg)]",
         "border border-white/10 bg-white/[0.04] p-5",
       )}
     >
@@ -76,4 +77,4 @@ export function TokenPathTile({ chain, visibleSteps = 20 }: Props) {
       )}
     </section>
   );
-}
+});

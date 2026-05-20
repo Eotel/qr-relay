@@ -1,11 +1,20 @@
+import type { Phase } from "@qr-relay/core";
 import { Badge } from "@qr-relay/ui/badge";
+import { Button } from "@qr-relay/ui/button";
 import { Card } from "@qr-relay/ui/card";
 import { cn } from "@qr-relay/ui/cn";
-import { Camera, Home as HomeIcon, Trophy } from "lucide-react";
+import {
+  Camera,
+  Home as HomeIcon,
+  Pause,
+  Play,
+  RefreshCw,
+  Trophy,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, NavLink, Outlet, useNavigate, useParams } from "react-router-dom";
 import { InactivityOverlay } from "../components/InactivityOverlay.js";
-import { joinRoom } from "../lib/api.js";
+import { joinRoom, pauseRoom, resetRoom, resumeRoom, startRoom } from "../lib/api.js";
 import {
   acceptInviteRole,
   ensurePlayerName,
@@ -16,6 +25,9 @@ import {
 import { isTokenHolder } from "../lib/token-holder.js";
 import { useWs } from "../lib/ws.js";
 import { type ClientView, ClientViewToggle } from "./_ClientViewToggle.js";
+
+const HOST_RESET_CONFIRM_TIMEOUT_MS = 4000;
+type HostPending = null | "start" | "pause" | "resume" | "reset";
 
 export type RoomOutletContext = {
   playerId: string;
@@ -73,7 +85,50 @@ export function RoomLayout() {
   const inactivity = useWs((s) => s.inactivity);
   const closed = useWs((s) => s.closed);
   const wsState = useWs((s) => s.state);
+  const phase = useWs((s) => s.phase);
   const navigate = useNavigate();
+
+  // Host operator controls (start/pause/resume/reset) live in the layout so
+  // the dashboard register can surface them in the header strip rather than
+  // a footer band that wastes vertical space when the cards above flex.
+  // Handheld (HostRoomHandheld) keeps its own bottom-band state — these
+  // hooks are inert when role !== "host" but cheap, so they always run to
+  // satisfy the Rules of Hooks.
+  const [hostPending, setHostPending] = useState<HostPending>(null);
+  const [hostActionError, setHostActionError] = useState<string | null>(null);
+  const [hostResetArmed, setHostResetArmed] = useState(false);
+
+  useEffect(() => {
+    if (!hostResetArmed) return;
+    const t = window.setTimeout(() => setHostResetArmed(false), HOST_RESET_CONFIRM_TIMEOUT_MS);
+    return () => window.clearTimeout(t);
+  }, [hostResetArmed]);
+
+  const runHost = async (kind: Exclude<HostPending, null>, action: () => Promise<void>) => {
+    if (hostPending) return;
+    setHostActionError(null);
+    setHostResetArmed(false);
+    setHostPending(kind);
+    try {
+      await action();
+    } catch (err) {
+      setHostActionError(`${kind} できませんでした: ${hostDescribeError(err)}`);
+    } finally {
+      setHostPending(null);
+    }
+  };
+
+  const onHostStart = () => void runHost("start", () => startRoom(code));
+  const onHostPause = () => void runHost("pause", () => pauseRoom(code));
+  const onHostResume = () => void runHost("resume", () => resumeRoom(code));
+  const onHostReset = () => {
+    if (hostPending) return;
+    if (phase.kind !== "ready" && !hostResetArmed) {
+      setHostResetArmed(true);
+      return;
+    }
+    void runHost("reset", () => resetRoom(code));
+  };
 
   // token-holder tint: only meaningful for client role + token-slot presets.
   // Detection lives in `state.values`, not the metric label, so it survives copy changes.
@@ -238,8 +293,34 @@ export function RoomLayout() {
               </NavLink>
             </nav>
           )}
+          {/* Host operator controls live in the header on md+ (dashboard
+              register). The bottom band wasted vertical space because the
+              h-12 buttons were pinned inside a flex row, leaving slack on
+              tall viewports and cramping the cards on short ones. Hidden
+              under md so the handheld register's own sticky footer stays
+              the single source of truth there. */}
+          {role === "host" && (
+            <HostHeaderOperator
+              phase={phase}
+              pending={hostPending}
+              resetArmed={hostResetArmed}
+              onStart={onHostStart}
+              onPause={onHostPause}
+              onResume={onHostResume}
+              onReset={onHostReset}
+            />
+          )}
         </div>
       </div>
+
+      {role === "host" && hostActionError && (
+        <Card
+          role="alert"
+          className="hidden border border-destructive/40 bg-destructive/10 text-sm font-bold text-destructive md:block"
+        >
+          {hostActionError}
+        </Card>
+      )}
 
       {joinError && (
         <Card
@@ -267,6 +348,103 @@ export function RoomLayout() {
       )}
     </main>
   );
+}
+
+function hostDescribeError(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  return String(err);
+}
+
+type HostHeaderOperatorProps = {
+  phase: Phase;
+  pending: HostPending;
+  resetArmed: boolean;
+  onStart: () => void;
+  onPause: () => void;
+  onResume: () => void;
+  onReset: () => void;
+};
+
+/**
+ * Compact operator controls rendered on the right edge of the dashboard
+ * header (md+ host only). Mirrors the OperatorStrip's primary-action state
+ * machine but uses pill-sized buttons so the header stays a single calm
+ * row. Handheld hides this — it has its own thumb-reach footer.
+ */
+function HostHeaderOperator({
+  phase,
+  pending,
+  resetArmed,
+  onStart,
+  onPause,
+  onResume,
+  onReset,
+}: HostHeaderOperatorProps) {
+  const primary = hostPrimaryAction(phase, pending, { onStart, onPause, onResume });
+  return (
+    <div className="hidden items-center gap-1.5 md:flex">
+      <Button
+        type="button"
+        variant="outline"
+        size="pill"
+        onClick={onReset}
+        disabled={pending !== null}
+        aria-busy={pending === "reset"}
+        aria-live="polite"
+        className={cn(
+          "gap-1.5",
+          resetArmed && "border-destructive text-destructive hover:bg-destructive/10",
+        )}
+      >
+        <RefreshCw size={14} aria-hidden />
+        <span>
+          {pending === "reset" ? "リセット中…" : resetArmed ? "もう一度押して初期化" : "リセット"}
+        </span>
+      </Button>
+      <Button
+        type="button"
+        variant="primary"
+        size="pill"
+        onClick={primary.onClick}
+        disabled={pending !== null}
+        aria-busy={primary.busy}
+        aria-live="polite"
+        className="gap-1.5"
+      >
+        <primary.Icon size={14} aria-hidden />
+        <span>{primary.label}</span>
+      </Button>
+    </div>
+  );
+}
+
+function hostPrimaryAction(
+  phase: Phase,
+  pending: HostPending,
+  callbacks: { onStart: () => void; onPause: () => void; onResume: () => void },
+) {
+  if (phase.kind === "running") {
+    return {
+      label: pending === "pause" ? "一時停止中…" : "一時停止",
+      Icon: Pause,
+      onClick: callbacks.onPause,
+      busy: pending === "pause",
+    };
+  }
+  if (phase.kind === "paused") {
+    return {
+      label: pending === "resume" ? "再開中…" : "再開",
+      Icon: Play,
+      onClick: callbacks.onResume,
+      busy: pending === "resume",
+    };
+  }
+  return {
+    label: pending === "start" ? "起動中…" : "スタート",
+    Icon: Play,
+    onClick: callbacks.onStart,
+    busy: pending === "start",
+  };
 }
 
 function ConnectionPill({ connected }: { connected: boolean }) {

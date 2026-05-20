@@ -1,6 +1,19 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { InfectionGridTile } from "./InfectionGridTile.js";
+
+beforeAll(() => {
+  // jsdom does not implement ResizeObserver. The component falls back to its
+  // 16:9 initial guess when the observer is unavailable, so a no-op stub keeps
+  // the wiring uncovered; here we exercise the constructor branch instead.
+  if (typeof globalThis.ResizeObserver === "undefined") {
+    globalThis.ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    } as unknown as typeof ResizeObserver;
+  }
+});
 
 const players = [
   { id: "a", name: "Alice", joinedAt: 0 },
@@ -53,6 +66,23 @@ describe("InfectionGridTile", () => {
     expect(screen.getByText("12")).toBeInTheDocument();
     expect(screen.getByText("Alice").closest("li")?.dataset.lit).toBe("true");
     expect(screen.getByText("Bob").closest("li")?.dataset.lit).toBe("false");
+  });
+
+  it("computes grid shape from player count (initial 16:9 guess fills wide host)", () => {
+    const { container } = render(
+      <InfectionGridTile
+        players={[
+          { id: "a", name: "Alice", joinedAt: 0 },
+          { id: "b", name: "Bob", joinedAt: 1 },
+        ]}
+        state={null}
+      />,
+    );
+    const ul = container.querySelector("ul");
+    expect(ul?.dataset.cols).toBe("2");
+    expect(ul?.dataset.rows).toBe("1");
+    expect(ul?.style.gridTemplateColumns).toBe("repeat(2, minmax(0, 1fr))");
+    expect(ul?.style.gridTemplateRows).toBe("repeat(1, minmax(0, 1fr))");
   });
 
   it("sorts players by joinedAt ascending regardless of input order", () => {

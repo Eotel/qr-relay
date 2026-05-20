@@ -23,7 +23,7 @@ export function LastScanTicker({ event, players }: Props) {
       aria-label="直前のスキャン"
       aria-live="polite"
       className={cn(
-        "flex h-full min-h-0 items-center gap-3 rounded-[var(--radius-lg)]",
+        "flex h-full min-h-0 items-center gap-3 overflow-hidden rounded-[var(--radius-lg)]",
         "border border-white/10 bg-white/[0.04] px-5 py-3",
       )}
     >

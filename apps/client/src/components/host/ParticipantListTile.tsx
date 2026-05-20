@@ -18,7 +18,7 @@ export function ParticipantListTile({ players }: Props) {
     <section
       aria-label="参加者一覧"
       className={cn(
-        "flex h-full min-h-0 flex-col gap-3 rounded-[var(--radius-lg)]",
+        "flex h-full min-h-0 flex-col gap-3 overflow-hidden rounded-[var(--radius-lg)]",
         "border border-white/10 bg-white/[0.04] p-5",
       )}
     >
