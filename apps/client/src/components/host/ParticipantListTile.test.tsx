@@ -39,4 +39,24 @@ describe("ParticipantListTile", () => {
     );
     expect(screen.getByText(/2 人/)).toBeInTheDocument();
   });
+
+  it("shows join time relative to the first participant", () => {
+    const base = 1_700_000_000_000;
+    render(
+      <ParticipantListTile
+        players={[
+          { id: "a", name: "Alice", joinedAt: base },
+          { id: "b", name: "Bob", joinedAt: base + 12_000 },
+          { id: "c", name: "Carol", joinedAt: base + 94_000 },
+          { id: "d", name: "Dave", joinedAt: base + 3_725_000 },
+        ]}
+      />,
+    );
+    const list = screen.getByLabelText("参加者一覧").querySelector("ol");
+    const items = within(list as HTMLElement).getAllByRole("listitem");
+    expect(items[0]?.textContent).toContain("+00:00");
+    expect(items[1]?.textContent).toContain("+00:12");
+    expect(items[2]?.textContent).toContain("+01:34");
+    expect(items[3]?.textContent).toContain("+01:02:05");
+  });
 });

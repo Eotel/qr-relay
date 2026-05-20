@@ -6,13 +6,19 @@ type Props = {
   players: PlayerLite[];
 };
 
-/**
- * Simplest possible host view: everyone in lobby order (joinedAt ascending).
- * Useful when the host just wants to confirm "did everyone join" without
- * worrying about live state.
- */
+function formatRelative(ts: number, base: number): string {
+  const totalSec = Math.max(0, Math.floor((ts - base) / 1000));
+  const sec = totalSec % 60;
+  const totalMin = Math.floor(totalSec / 60);
+  const min = totalMin % 60;
+  const hours = Math.floor(totalMin / 60);
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  return hours > 0 ? `+${pad(hours)}:${pad(min)}:${pad(sec)}` : `+${pad(min)}:${pad(sec)}`;
+}
+
 export function ParticipantListTile({ players }: Props) {
   const sorted = [...players].sort((a, b) => a.joinedAt - b.joinedAt);
+  const firstJoinedAt = sorted[0]?.joinedAt ?? 0;
 
   return (
     <section
@@ -35,16 +41,17 @@ export function ParticipantListTile({ players }: Props) {
           参加者を待機中
         </p>
       ) : (
-        <ol className="m-0 grid min-h-0 flex-1 grid-cols-2 gap-x-4 gap-y-1 overflow-hidden p-0 md:grid-cols-3 lg:grid-cols-4">
+        <ol className="m-0 flex min-h-0 flex-1 flex-col divide-y divide-white/5 overflow-y-auto p-0">
           {sorted.map((p, i) => (
             <li
               key={p.id}
-              className="flex items-baseline gap-3 text-[clamp(18px,2.2vw,30px)] font-bold"
+              className="grid grid-cols-[3ch_minmax(0,1fr)_auto] items-center gap-3 py-2 text-[14px] font-medium"
             >
-              <span className="w-[2ch] shrink-0 text-right tabular-nums text-muted-foreground">
-                {i + 1}
+              <span className="text-right tabular-nums text-muted-foreground">{i + 1}</span>
+              <span className="min-w-0 truncate">{p.name}</span>
+              <span className="tabular-nums text-[12px] text-muted-foreground">
+                {formatRelative(p.joinedAt, firstJoinedAt)}
               </span>
-              <span className="min-w-0 flex-1 truncate">{p.name}</span>
             </li>
           ))}
         </ol>
