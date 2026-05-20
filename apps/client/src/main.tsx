@@ -4,9 +4,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import "@qr-relay/ui/styles.css";
 import { Home } from "./routes/Home.js";
 
-const NewRoom = lazy(() =>
-  import("./routes/NewRoom.js").then((m) => ({ default: m.NewRoom })),
-);
+const NewRoom = lazy(() => import("./routes/NewRoom.js").then((m) => ({ default: m.NewRoom })));
 const Room = lazy(() => import("./routes/Room.js").then((m) => ({ default: m.Room })));
 const Scoreboard = lazy(() =>
   import("./routes/Scoreboard.js").then((m) => ({ default: m.Scoreboard })),

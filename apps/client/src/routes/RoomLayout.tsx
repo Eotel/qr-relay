@@ -48,6 +48,8 @@ export function RoomLayout() {
   const tabClass = ({ isActive }: { isActive: boolean }) =>
     cn(
       "inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-[13px] font-bold transition-colors",
+      "pointer-coarse:h-11 pointer-coarse:gap-2 pointer-coarse:px-4 pointer-coarse:text-sm",
+      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background",
       isActive
         ? "bg-primary text-primary-foreground shadow-[var(--shadow-cta-primary)]"
         : "bg-muted/40 text-foreground hover:bg-muted/60",

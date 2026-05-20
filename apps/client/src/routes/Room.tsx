@@ -97,19 +97,23 @@ export function Room() {
         </div>
       </div>
 
+      {/* Portrait phones stack the QR over the camera. Landscape phones
+          and md+ desktops split side by side: half the screen each is
+          how two players actually use this in person, kneeling
+          opposite each other or holding the phone sideways. */}
       <section
         aria-label="QR と撮影"
-        className="flex min-h-0 flex-1 flex-col items-stretch gap-2.5 md:flex-row md:gap-3"
+        className="flex min-h-0 flex-1 flex-col items-stretch gap-2.5 landscape:flex-row landscape:gap-3 md:flex-row md:gap-3"
       >
         {showQr && (
-          <div className="flex min-h-0 flex-1 items-center justify-center md:min-w-0">
+          <div className="flex min-h-0 flex-1 items-center justify-center landscape:min-w-0 md:min-w-0">
             <div className={cn(tileFrame, "bg-white")}>
               <QrDisplay payload={payload} />
             </div>
           </div>
         )}
         {showScanner && (
-          <div className="flex min-h-0 flex-1 items-center justify-center md:min-w-0">
+          <div className="flex min-h-0 flex-1 items-center justify-center landscape:min-w-0 md:min-w-0">
             <div className={cn(tileFrame, "bg-black text-white")}>
               <QrScannerView onScan={onScan} />
             </div>
@@ -145,6 +149,7 @@ function ViewToggle({ view, onChange }: { view: View; onChange: (v: View) => voi
             onClick={() => onChange(it.key)}
             className={cn(
               "inline-flex h-7 items-center justify-center rounded-full px-2.5 transition-colors duration-150",
+              "pointer-coarse:h-10 pointer-coarse:px-3.5",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background",
               active
                 ? "bg-primary text-primary-foreground"

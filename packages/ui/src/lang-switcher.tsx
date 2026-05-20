@@ -38,6 +38,7 @@ export function LangSwitcher({ value, onChange, className }: LangSwitcherProps) 
             onClick={() => onChange(l.code)}
             className={cn(
               "px-3.5 py-1.5 rounded-full text-[13px] font-bold whitespace-nowrap",
+              "pointer-coarse:px-4 pointer-coarse:py-2.5 pointer-coarse:text-sm",
               "transition-colors duration-150 ease-out",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background",
               active

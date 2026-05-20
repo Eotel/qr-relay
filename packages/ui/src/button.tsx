@@ -19,7 +19,9 @@ const buttonVariants = cva(
       size: {
         cta: "w-full h-12 px-4 text-base rounded-[var(--radius-md)]",
         submit: "h-11 px-4 text-sm rounded-[var(--radius-md)]",
-        pill: "h-8 px-3.5 text-[13px] rounded-full",
+        /* Touch devices get the 44px floor; mouse/trackpad keeps the
+           denser 32px so the chip row doesn't bloat on desktop. */
+        pill: "h-8 px-3.5 text-[13px] rounded-full pointer-coarse:h-11 pointer-coarse:px-4 pointer-coarse:text-sm",
         icon: "size-11 rounded-[var(--radius-md)]",
       },
     },
