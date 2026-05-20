@@ -139,4 +139,21 @@
   button {
     touch-action: manipulation;
   }
+
+  /* Token-holder tint: only the player currently holding the relay token
+     (baton / infection presets) gets a primary-tinted backdrop on <main>.
+     Body stays neutral so the iOS safe-area gutters don't change color.
+     Built from --primary via color-mix so we don't invent a new hue.
+     Register-agnostic: works against both cream (light) and slate (dark)
+     because the mix happens against --background. */
+  main[data-holding="true"] {
+    background-color: color-mix(in oklch, var(--primary) 16%, var(--background));
+    transition: background-color 150ms ease-out;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    main[data-holding="true"] {
+      transition: none;
+    }
+  }
 }
