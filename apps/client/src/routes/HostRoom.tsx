@@ -170,6 +170,11 @@ function HostRoomHandheld({ code }: { code: string }) {
         </span>
       </Card>
 
+      {/* Room code stays visible at every phase so a late joiner can still
+          read it across the room. The QR + URL block, however, only earns its
+          screen real estate while waiting — once play starts, players hand off
+          via the client-side share overlay, and the host's QR would just
+          steal density from the score / participants cards. */}
       <Card className="flex flex-col items-center gap-3 text-center">
         <span className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-muted-foreground">
           ROOM CODE
@@ -177,17 +182,21 @@ function HostRoomHandheld({ code }: { code: string }) {
         <strong className="text-[42px] leading-none font-black tracking-[0.18em] sm:text-[56px]">
           {code}
         </strong>
-        <p className="m-0 text-sm font-bold text-foreground/85">
-          このQRをスキャンして参加してください
-        </p>
-        <div className="flex w-full justify-center">
-          <div className={qrFrame}>
-            <JoinQrDisplay code={code} />
-          </div>
-        </div>
-        <p className="m-0 break-all text-[11px] font-medium text-foreground/75">
-          {joinUrlFor(code)}
-        </p>
+        {phase.kind === "ready" && (
+          <>
+            <p className="m-0 text-sm font-bold text-foreground/85">
+              このQRをスキャンして参加してください
+            </p>
+            <div className="flex w-full justify-center">
+              <div className={qrFrame}>
+                <JoinQrDisplay code={code} />
+              </div>
+            </div>
+            <p className="m-0 break-all text-[11px] font-medium text-foreground/75">
+              {joinUrlFor(code)}
+            </p>
+          </>
+        )}
       </Card>
 
       <Card className="flex flex-col gap-3">

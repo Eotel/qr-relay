@@ -29,6 +29,15 @@ describe("appRouteObjects", () => {
     expect(chain[1]?.route.index).toBe(true);
   });
 
+  it("nests RoomRoot under RoomLayout for /r/:code/host (host-intent URL)", () => {
+    const matches = matchRoutes(appRouteObjects, "/r/ABC123/host");
+    expect(matches).not.toBeNull();
+    const chain = matches ?? [];
+    expect(chain).toHaveLength(2);
+    expect(elementType(chain[0]?.route.element)).toBe(RoomLayoutLazy);
+    expect(elementType(chain[1]?.route.element)).toBe(RoomRootLazy);
+  });
+
   it("nests Scoreboard under RoomLayout for /r/:code/scoreboard", () => {
     const matches = matchRoutes(appRouteObjects, "/r/ABC123/scoreboard");
     expect(matches).not.toBeNull();

@@ -7,7 +7,7 @@ import { ArrowLeft, ArrowRight } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createRoom, joinRoom, listHandlersAndPresets } from "../lib/api.js";
-import { ensurePlayerName, getPlayerId, setRole } from "../lib/identity.js";
+import { ensurePlayerName, getPlayerId, setRecentHostCode, setRole } from "../lib/identity.js";
 
 type LoadState = "loading" | "ready" | "error";
 
@@ -51,6 +51,9 @@ export function NewRoom() {
       // Mark this device as the host BEFORE navigating so RoomLayout's role
       // lookup resolves on first render and we go straight into HostRoom.
       setRole(code, "host");
+      // Remember for Home's "前回のホストルームに戻る" CTA, so a closed tab /
+      // PWA cold start can come back in one tap.
+      setRecentHostCode(code);
       await joinRoom(code, getPlayerId(), ensurePlayerName(), "host");
       navigate(`/r/${encodeURIComponent(code)}`);
     } catch (err) {

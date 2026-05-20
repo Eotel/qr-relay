@@ -153,6 +153,12 @@
     background: var(--background);
     color: var(--foreground);
     font-family: var(--font-sans);
+    /* Suppress pull-to-refresh and overscroll bounce so the room screens
+       feel native. Routes that intentionally scroll (Home, NewRoom,
+       Scoreboard, RoomClosed) still scroll their own content; this rule
+       just kills the rubber-band gesture at the page edge. RoomLayout's
+       <main> uses h-dvh + overflow-hidden so it never produces page
+       scroll in the first place. */
     overscroll-behavior: none;
     -webkit-tap-highlight-color: transparent;
   }

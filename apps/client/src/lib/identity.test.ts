@@ -109,6 +109,73 @@ describe("getRole / setRole / clearRole", () => {
   });
 });
 
+describe("acceptInviteRole", () => {
+  it("auto-accepts as client when no role is stored (cold invite landing)", async () => {
+    const { acceptInviteRole, getRole } = await loadIdentity();
+    expect(acceptInviteRole("ABC")).toBe("client");
+    expect(getRole("ABC")).toBe("client");
+  });
+
+  it("preserves an existing host claim (re-opening own room link does not demote)", async () => {
+    storage.setItem("qr-relay:role:ABC", "host");
+    const { acceptInviteRole, getRole } = await loadIdentity();
+    expect(acceptInviteRole("ABC")).toBe("host");
+    expect(getRole("ABC")).toBe("host");
+  });
+
+  it("preserves an existing client claim (no flip back to host)", async () => {
+    storage.setItem("qr-relay:role:ABC", "client");
+    const { acceptInviteRole, getRole } = await loadIdentity();
+    expect(acceptInviteRole("ABC")).toBe("client");
+    expect(getRole("ABC")).toBe("client");
+  });
+});
+
+describe("recent host code", () => {
+  it("getRecentHostCode は未保存なら null", async () => {
+    const { getRecentHostCode } = await loadIdentity();
+    expect(getRecentHostCode()).toBeNull();
+  });
+
+  it("setRecentHostCode で保存し getRecentHostCode で読み戻す", async () => {
+    const { getRecentHostCode, setRecentHostCode } = await loadIdentity();
+    setRecentHostCode("ABC");
+    expect(getRecentHostCode()).toBe("ABC");
+    expect(storage.getItem("qr-relay:last-host-code")).toBe("ABC");
+  });
+
+  it("setRecentHostCode は上書きする (直近 1 件のみ保持)", async () => {
+    const { getRecentHostCode, setRecentHostCode } = await loadIdentity();
+    setRecentHostCode("ABC");
+    setRecentHostCode("XYZ");
+    expect(getRecentHostCode()).toBe("XYZ");
+  });
+
+  it("空文字 / 空白のみは保存しない (defensive)", async () => {
+    const { getRecentHostCode, setRecentHostCode } = await loadIdentity();
+    setRecentHostCode("");
+    expect(getRecentHostCode()).toBeNull();
+    setRecentHostCode("   ");
+    expect(getRecentHostCode()).toBeNull();
+  });
+
+  it("clearRecentHostCode (引数なし) は無条件で消す", async () => {
+    const { clearRecentHostCode, getRecentHostCode, setRecentHostCode } = await loadIdentity();
+    setRecentHostCode("ABC");
+    clearRecentHostCode();
+    expect(getRecentHostCode()).toBeNull();
+  });
+
+  it("clearRecentHostCode(code) は code が一致した場合だけ消す", async () => {
+    const { clearRecentHostCode, getRecentHostCode, setRecentHostCode } = await loadIdentity();
+    setRecentHostCode("ABC");
+    clearRecentHostCode("XYZ");
+    expect(getRecentHostCode()).toBe("ABC");
+    clearRecentHostCode("ABC");
+    expect(getRecentHostCode()).toBeNull();
+  });
+});
+
 describe("ensurePlayerName", () => {
   it("preserves an existing name", async () => {
     storage.setItem("qr-relay:player-name", "Bob");

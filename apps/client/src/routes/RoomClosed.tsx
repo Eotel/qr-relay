@@ -3,6 +3,7 @@ import { Card } from "@qr-relay/ui/card";
 import { Home as HomeIcon } from "lucide-react";
 import { useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { clearRecentHostCode } from "../lib/identity.js";
 import { useWs } from "../lib/ws.js";
 
 /**
@@ -15,6 +16,13 @@ export function RoomClosed() {
   const { code = "" } = useParams<{ code: string }>();
   const navigate = useNavigate();
   const clearClosed = useWs((s) => s.clearClosed);
+
+  // Drop the recent-host-code only if it points at THIS code — protects against
+  // a stale tab clobbering a freshly-started room's entry. Runs on mount (and
+  // is idempotent), not on unmount, so Home picks up the cleared state next.
+  useEffect(() => {
+    if (code) clearRecentHostCode(code);
+  }, [code]);
 
   useEffect(() => {
     return () => {

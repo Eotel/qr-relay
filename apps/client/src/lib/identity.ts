@@ -1,6 +1,7 @@
 const ID_KEY = "qr-relay:player-id";
 const NAME_KEY = "qr-relay:player-name";
 const ROLE_KEY_PREFIX = "qr-relay:role:";
+const RECENT_HOST_KEY = "qr-relay:last-host-code";
 
 export type Role = "host" | "client";
 
@@ -19,6 +20,48 @@ export function setRole(code: string, role: Role): void {
 
 export function clearRole(code: string): void {
   localStorage.removeItem(roleKey(code));
+}
+
+/**
+ * Resolve the role for someone arriving via an invite QR / share link.
+ * If this device already holds a host claim for the room, keep it (a host
+ * shouldn't get demoted by re-scanning their own QR). Otherwise pin the
+ * role to "client" so /r/CODE landings always join as a player.
+ *
+ * Returns the resolved role so the caller can act on it without re-reading.
+ */
+export function acceptInviteRole(code: string): Role {
+  const existing = getRole(code);
+  if (existing === "host") return "host";
+  setRole(code, "client");
+  return "client";
+}
+
+// Tracks the most recent room this device opened as host. Used by Home to
+// surface a one-tap rejoin CTA when a host's tab is closed / app cold-started.
+// Only one entry — the typical session is "one venue = one room", so a list UI
+// would be friction without payoff.
+export function getRecentHostCode(): string | null {
+  const raw = localStorage.getItem(RECENT_HOST_KEY);
+  return raw && raw.trim() ? raw : null;
+}
+
+export function setRecentHostCode(code: string): void {
+  const trimmed = code.trim();
+  if (!trimmed) return;
+  localStorage.setItem(RECENT_HOST_KEY, trimmed);
+}
+
+// Pass `code` to only clear when it matches — protects against a stale tab
+// from a previous room overwriting a fresh "current host room" entry.
+export function clearRecentHostCode(code?: string): void {
+  if (code === undefined) {
+    localStorage.removeItem(RECENT_HOST_KEY);
+    return;
+  }
+  if (getRecentHostCode() === code) {
+    localStorage.removeItem(RECENT_HOST_KEY);
+  }
 }
 
 function uuid(): string {

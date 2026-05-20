@@ -18,6 +18,15 @@ describe("parseJoinPayload", () => {
     expect(parseJoinPayload("https://app/r/abcdef?x=1#frag")).toBe("ABCDEF");
   });
 
+  it("host-suffixed invite URLs collapse to the same code (URL = intent, not authority)", () => {
+    expect(parseJoinPayload("https://qr-relay.example/r/abc123/host")).toBe("ABC123");
+    expect(parseJoinPayload("/r/abc123/host")).toBe("ABC123");
+  });
+
+  it("scoreboard-suffixed URLs collapse to the same code", () => {
+    expect(parseJoinPayload("https://qr-relay.example/r/abc123/scoreboard")).toBe("ABC123");
+  });
+
   it("rejects empty / whitespace", () => {
     expect(parseJoinPayload("")).toBeNull();
     expect(parseJoinPayload("   ")).toBeNull();

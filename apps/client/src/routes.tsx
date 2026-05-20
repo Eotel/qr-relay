@@ -29,6 +29,11 @@ export const appRouteObjects: RouteObject[] = [
     element: <RoomLayoutLazy />,
     children: [
       { index: true, element: <RoomRootLazy /> },
+      // `/host` is intent decoration. The localStorage host claim is the
+      // authority; landing here without one still falls back to client (see
+      // acceptInviteRole in lib/identity.ts). The segment exists so a host's
+      // bookmark / PWA shortcut can self-describe its role.
+      { path: "host", element: <RoomRootLazy /> },
       { path: "scoreboard", element: <ScoreboardLazy /> },
     ],
   },
