@@ -38,3 +38,8 @@ coverage/
 playwright-report/
 test-results/
 /playwright/.cache/
+
+.claude/settings.local.json
+
+# Local design-system snapshot (impeccable skill, generated)
+.impeccable/
