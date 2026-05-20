@@ -20,7 +20,11 @@ export function Scoreboard() {
           {players.map((p) => (
             <Badge
               key={p.id}
-              variant={p.id === playerId ? "host" : "player"}
+              /* Chip grammar: teal "host" pill marks self, neutral marks
+                 everyone else. Using "player" (terracotta primary) for
+                 non-self players consumed the CTA color for non-CTA chrome
+                 and made the participant list shout. Matches ClientRoom. */
+              variant={p.id === playerId ? "host" : "neutral"}
               size="chip"
               className="normal-case tracking-normal"
             >
@@ -35,7 +39,11 @@ export function Scoreboard() {
         <h2 className="m-0 text-sm font-extrabold uppercase tracking-[0.14em] text-muted-foreground">
           メトリクス
         </h2>
-        <MetricsPanel metrics={metrics} players={players} selfId={playerId} />
+        {metrics.length === 0 ? (
+          <p className="m-0 text-sm text-foreground/85">スタート後にメトリクスが表示されます。</p>
+        ) : (
+          <MetricsPanel metrics={metrics} players={players} selfId={playerId} />
+        )}
       </Card>
     </>
   );

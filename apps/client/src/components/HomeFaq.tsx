@@ -13,7 +13,7 @@ const summaryClass = cn(
   "[&::-webkit-details-marker]:hidden",
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
 );
-const bodyClass = "px-5 pb-5 pt-0 text-sm leading-[1.7] text-muted-foreground";
+const bodyClass = "px-5 pb-5 pt-0 text-sm leading-[1.7] text-foreground/90";
 
 export function HomeFaq() {
   const [canInstall, setCanInstall] = useState(false);
@@ -173,7 +173,7 @@ function ButtonRow({ variant, icon, label, desc }: ButtonRowProps) {
         {icon}
         <span>{label}</span>
       </Button>
-      <span className="text-sm leading-snug text-muted-foreground">{desc}</span>
+      <span className="text-sm leading-snug text-foreground/85">{desc}</span>
     </li>
   );
 }

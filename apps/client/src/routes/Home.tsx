@@ -68,7 +68,7 @@ export function Home() {
       <AppTitle main="QR Relay" sub="スマホをかざして遊ぶ汎用ゲームツール" />
 
       <Card className="rounded-[var(--radius-md)] border-2 border-dashed border-border bg-muted/20 p-3 text-center">
-        <p className="m-0 text-sm font-bold text-muted-foreground">
+        <p className="m-0 text-sm font-bold text-foreground/85">
           使い方: 1台でホストを立ち上げ → 別の端末で QR を読んで参加
         </p>
       </Card>
@@ -112,13 +112,17 @@ export function Home() {
           ctaVariant="primary"
           onCtaClick={() => setScannerOpen(true)}
         >
-          <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+          <div className="flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-[0.14em] text-muted-foreground">
             <span aria-hidden className="h-px flex-1 bg-border" />
             または
             <span aria-hidden className="h-px flex-1 bg-border" />
           </div>
           <form className="flex items-end gap-2" onSubmit={onJoinByCode}>
-            <label className="flex flex-1 flex-col gap-1.5 text-sm font-bold">
+            {/* min-w-0 on the label: <input> ships with size=20 (~180px intrinsic
+               preferred width). Without min-w-0 the flex-1 label refuses to
+               shrink past that, and the 参加 button gets pushed past the card's
+               right border on narrow grid columns. */}
+            <label className="flex min-w-0 flex-1 flex-col gap-1.5 text-sm font-bold">
               <span className="sr-only">ルームコード</span>
               <input
                 type="text"
@@ -128,7 +132,7 @@ export function Home() {
                 autoCapitalize="characters"
                 autoCorrect="off"
                 required
-                className="h-11 rounded-[var(--radius-md)] border-2 border-border bg-card px-3 text-base font-bold tracking-[0.2em] text-foreground outline-none focus-visible:border-ring"
+                className="h-11 w-full rounded-[var(--radius-md)] border-2 border-border bg-card px-3 text-base font-bold tracking-[0.2em] text-foreground outline-none focus-visible:border-ring"
               />
             </label>
             <Button type="submit" variant="primary" size="submit" className="w-auto">

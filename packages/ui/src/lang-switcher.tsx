@@ -17,8 +17,13 @@ interface LangSwitcherProps {
 
 export function LangSwitcher({ value, onChange, className }: LangSwitcherProps) {
   return (
+    /* Segmented buttons with aria-pressed instead of role="radio". ARIA
+       radio expects arrow-key navigation; with three buttons that all live
+       in the tab order, aria-pressed is the honest contract — the screen
+       reader announces "言語 グループ" + each lang as a toggle. */
+    // biome-ignore lint/a11y/useSemanticElements: <fieldset> is for form-control grouping; this is a segmented toolbar of toggle buttons, so role="group" on a <div> is the correct ARIA fit.
     <div
-      role="radiogroup"
+      role="group"
       aria-label="言語"
       className={cn(
         "self-center flex gap-1.5 p-1.5 rounded-full",
@@ -32,13 +37,16 @@ export function LangSwitcher({ value, onChange, className }: LangSwitcherProps) 
           <button
             key={l.code}
             type="button"
-            // biome-ignore lint/a11y/useSemanticElements: styled segmented pill is intentional; semantics carried via role+aria-checked
-            role="radio"
-            aria-checked={active}
+            aria-pressed={active}
+            aria-label={l.label}
             onClick={() => onChange(l.code)}
             className={cn(
               "px-3.5 py-1.5 rounded-full text-[13px] font-bold whitespace-nowrap",
-              "pointer-coarse:px-4 pointer-coarse:py-2.5 pointer-coarse:text-sm",
+              /* PRODUCT.md sets --tap-min: 44px. py-2.5 + text-sm lands at
+                 ~40px on coarse pointers; min-h-11 forces the row to clear
+                 the floor without spreading the desktop pill (where the
+                 base h is ~26px and a mouse cursor doesn't need 44). */
+              "pointer-coarse:px-4 pointer-coarse:py-2.5 pointer-coarse:min-h-11 pointer-coarse:text-sm",
               "transition-colors duration-150 ease-out",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background",
               active

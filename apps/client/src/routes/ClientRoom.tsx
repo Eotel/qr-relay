@@ -105,11 +105,15 @@ export function ClientRoom() {
             <div className={cn(tileFrame, "bg-black text-white")}>
               <QrScannerView onScan={onScan} />
               {!isRunning && (
+                /* The 70% black scrim already dims the camera enough to read
+                   the status text above the live video. DESIGN.md scopes
+                   backdrop-blur to the sticky CTA bar; on a video tile it
+                   would only be cosmetic, so it's gone. */
                 <div
                   aria-live="polite"
                   className={cn(
                     "absolute inset-0 flex flex-col items-center justify-center gap-1.5",
-                    "bg-black/70 text-center text-white backdrop-blur-sm",
+                    "bg-black/70 text-center text-white",
                   )}
                 >
                   <span className="text-[11px] font-extrabold uppercase tracking-[0.18em]">
@@ -161,9 +165,16 @@ function ViewToggle({ view, onChange }: { view: View; onChange: (v: View) => voi
     { key: "qr", icon: <QrCode size={14} />, label: "QR" },
     { key: "scan", icon: <Camera size={14} />, label: "撮影" },
   ];
+  /* Segmented control as a group of aria-pressed toggle buttons. The previous
+     role="radiogroup" was a broken contract — the ARIA radio pattern expects
+     arrow-key navigation and we never wired it up, so screen-reader users
+     would land in a radiogroup whose interaction model was tab-and-Enter,
+     not arrow-keys. aria-pressed buttons announce as toggle buttons whose
+     state changes on activation, which matches what actually happens here. */
   return (
+    // biome-ignore lint/a11y/useSemanticElements: <fieldset> is for form-control grouping; this is a segmented toolbar of toggle buttons, so role="group" on a <div> is the correct ARIA fit.
     <div
-      role="radiogroup"
+      role="group"
       aria-label="表示モード"
       className="flex items-center gap-1 rounded-full bg-muted/40 p-1 dark:bg-white/[0.06]"
     >
@@ -173,14 +184,16 @@ function ViewToggle({ view, onChange }: { view: View; onChange: (v: View) => voi
           <button
             key={it.key}
             type="button"
-            // biome-ignore lint/a11y/useSemanticElements: styled segmented pill is intentional; semantics carried via role+aria-checked
-            role="radio"
-            aria-checked={active}
+            aria-pressed={active}
             aria-label={it.label}
             onClick={() => onChange(it.key)}
             className={cn(
               "inline-flex h-7 items-center justify-center rounded-full px-2.5 transition-colors duration-150",
-              "pointer-coarse:h-10 pointer-coarse:px-3.5",
+              /* PRODUCT.md sets --tap-min: 44px. Coarse pointer (phone in
+                 hand, outdoor light, sweaty thumb) needs the 44 floor; mouse
+                 stays denser at 28px so the segmented control doesn't bloat
+                 the top bar on desktop. */
+              "pointer-coarse:h-11 pointer-coarse:px-4",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background",
               active
                 ? "bg-primary text-primary-foreground"

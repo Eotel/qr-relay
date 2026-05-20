@@ -61,7 +61,11 @@ export function MetricsPanel({ metrics, players, selfId }: Props) {
               const leaders = topScorers(m.byPlayer);
               return Object.entries(m.byPlayer).map(([pid, v]) => {
                 const isLeader = leaders.has(pid);
-                const variant = isLeader ? "leader" : pid === selfId ? "host" : "player";
+                /* Chip grammar: leader (yellow) > self (teal host pill) >
+                   everyone else (neutral). Using "player" (terracotta
+                   primary) for non-leader non-self chips consumed the
+                   CTA color for non-CTA chrome. */
+                const variant = isLeader ? "leader" : pid === selfId ? "host" : "neutral";
                 return (
                   <Badge
                     key={pid}

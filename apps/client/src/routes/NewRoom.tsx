@@ -9,20 +9,36 @@ import { useNavigate } from "react-router-dom";
 import { createRoom, joinRoom, listHandlersAndPresets } from "../lib/api.js";
 import { ensurePlayerName, getPlayerId, setRole } from "../lib/identity.js";
 
+type LoadState = "loading" | "ready" | "error";
+
 export function NewRoom() {
   const navigate = useNavigate();
   const [presets, setPresets] = useState<Preset[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /* Track preset-load state separately from `presets.length` so the empty
+     grid during a cold Worker start (PRODUCT.md: ">3s で待機 UI を出す")
+     reads as "loading" rather than "no presets exist". */
+  const [loadState, setLoadState] = useState<LoadState>("loading");
 
   useEffect(() => {
+    let cancelled = false;
     listHandlersAndPresets()
       .then((data) => {
+        if (cancelled) return;
         setPresets(data.presets);
         if (data.presets[0]) setSelected(data.presets[0].id);
+        setLoadState("ready");
       })
-      .catch((err) => setError(String(err)));
+      .catch((err) => {
+        if (cancelled) return;
+        setError(String(err));
+        setLoadState("error");
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const onCreate = async () => {
@@ -48,7 +64,10 @@ export function NewRoom() {
       <AppTitle main="ルームを作る" sub="プリセットを選んでコードを共有" align="left" />
 
       {error && (
-        <Card className="border border-destructive/40 bg-destructive/10 text-sm font-bold text-destructive">
+        <Card
+          role="alert"
+          className="border border-destructive/40 bg-destructive/10 text-sm font-bold text-destructive"
+        >
           {error}
         </Card>
       )}
@@ -57,30 +76,60 @@ export function NewRoom() {
         <h2 className="m-0 text-sm font-extrabold uppercase tracking-[0.14em] text-muted-foreground">
           プリセットを選ぶ
         </h2>
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-2.5">
-          {presets.map((p) => {
-            const active = selected === p.id;
-            return (
-              <button
-                type="button"
-                key={p.id}
-                onClick={() => setSelected(p.id)}
-                aria-pressed={active}
+        {loadState === "loading" && (
+          <div
+            aria-live="polite"
+            className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-2.5"
+          >
+            <span className="sr-only">プリセットを読み込み中</span>
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <div
+                key={i}
+                aria-hidden
                 className={cn(
-                  "flex flex-col items-start gap-1.5 rounded-[var(--radius-md)] border-2 p-3 text-left",
-                  "transition-colors duration-150 ease-out",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-                  active
-                    ? "border-primary bg-primary/10 text-foreground shadow-[var(--shadow-cta-primary)]"
-                    : "border-border bg-card text-foreground hover:bg-muted/30",
+                  "flex flex-col items-start gap-1.5 rounded-[var(--radius-md)] border-2 border-border bg-muted/20 p-3",
+                  "h-[68px]",
                 )}
               >
-                <span className="text-base font-extrabold leading-tight">{p.name}</span>
-                <span className="text-xs leading-snug text-muted-foreground">{p.description}</span>
-              </button>
-            );
-          })}
-        </div>
+                <span className="block h-3 w-1/2 rounded-sm bg-muted/60" />
+                <span className="block h-2 w-4/5 rounded-sm bg-muted/40" />
+              </div>
+            ))}
+          </div>
+        )}
+        {loadState === "ready" && presets.length === 0 && (
+          <p className="m-0 text-sm text-foreground/85">
+            利用できるプリセットがありません。少し待ってからもう一度お試しください。
+          </p>
+        )}
+        {loadState === "ready" && presets.length > 0 && (
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-2.5">
+            {presets.map((p) => {
+              const active = selected === p.id;
+              return (
+                <button
+                  type="button"
+                  key={p.id}
+                  onClick={() => setSelected(p.id)}
+                  aria-pressed={active}
+                  className={cn(
+                    "flex flex-col items-start gap-1.5 rounded-[var(--radius-md)] border-2 p-3 text-left",
+                    "transition-colors duration-150 ease-out",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                    active
+                      ? "border-primary bg-primary/10 text-foreground shadow-[var(--shadow-cta-primary)]"
+                      : "border-border bg-card text-foreground hover:bg-muted/30",
+                  )}
+                >
+                  <span className="text-base font-extrabold leading-tight">{p.name}</span>
+                  <span className="text-xs font-medium leading-snug text-foreground/80">
+                    {p.description}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </Card>
 
       <div className="flex items-center justify-between gap-3">

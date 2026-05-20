@@ -3,8 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#faf6f1" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#1e2433" media="(prefers-color-scheme: dark)" />
+    <!--
+      Default theme-color is the handheld register (cream) because Home and
+      every player-side route render there regardless of OS preference. The
+      host stage register is class-driven, so RoomLayout swaps this value
+      to slate-navy when role === "host" and restores it on unmount.
+      Keying on prefers-color-scheme here would let the OS chrome color
+      disagree with the actual page register.
+    -->
+    <meta name="theme-color" content="#faf6f1" />
     <title>QR Relay</title>
   </head>
   <body>

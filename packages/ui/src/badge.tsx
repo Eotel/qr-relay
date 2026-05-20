@@ -7,8 +7,13 @@ const badgeVariants = cva(
   {
     variants: {
       variant: {
-        host: "bg-primary text-primary-foreground",
-        player: "bg-secondary text-secondary-foreground",
+        /* Step / role badge colors match their CTA. The host role's CTA
+           is the teal secondary, so the host STEP pill is teal too; the
+           player role's CTA is the terracotta primary, so the player
+           STEP pill is terracotta. Pairing the pill with its button is
+           the visual contract this layout depends on. */
+        host: "bg-secondary text-secondary-foreground",
+        player: "bg-primary text-primary-foreground",
         neutral: "bg-muted text-muted-foreground",
         /* Score leader. Team-yellow is register-agnostic gameplay data
            (same value in handheld and stage), so the dark text is hard-

@@ -18,6 +18,17 @@ interface RoleCardProps {
   children?: React.ReactNode;
 }
 
+/* Role-tinted card borders: the card edge inherits the role's CTA hue
+   so the host card frames in teal and the player card frames in
+   terracotta. The 2px width overrides Card's default 1px hairline; the
+   ~40% opacity keeps the warm cream interior dominant rather than
+   turning the card into a colored block. */
+const roleBorderClass: Record<RoleCardProps["stepVariant"], string> = {
+  host: "border-2 border-secondary/45 dark:border-secondary/50",
+  player: "border-2 border-primary/50 dark:border-primary/55",
+  neutral: "",
+};
+
 export function RoleCard({
   step,
   stepVariant,
@@ -32,7 +43,7 @@ export function RoleCard({
   children,
 }: RoleCardProps) {
   return (
-    <Card className={cn("flex flex-col gap-3 relative", className)}>
+    <Card className={cn("flex flex-col gap-3 relative", roleBorderClass[stepVariant], className)}>
       <Badge variant={stepVariant} size="step" className="self-start">
         STEP {step}
       </Badge>
@@ -49,7 +60,7 @@ export function RoleCard({
         <h3 className="m-0 text-base font-extrabold tracking-tight">{title}</h3>
       </div>
 
-      <p className="m-0 text-sm leading-[1.65] text-muted-foreground">{desc}</p>
+      <p className="m-0 text-sm leading-[1.65] text-foreground/85">{desc}</p>
 
       <Button variant={ctaVariant} size="cta" onClick={onCtaClick}>
         {ctaIcon}
