@@ -40,6 +40,7 @@ export type WsStoreState = {
   lastError: string | null;
   socket: WebSocket | null;
   reconnectTimer: TimerId | null;
+  errorClearTimer: TimerId | null;
   /** Non-null while the server has issued an inactivity warning. */
   inactivity: { closeAt: number } | null;
   /** Non-null once the server has closed the room. RoomLayout reads this to navigate. */
@@ -69,7 +70,18 @@ export type WsStoreDeps = {
   clock?: Clock;
   buildUrl?: (code: string, playerId: string) => string;
   reconnectDelayMs?: number;
+  /** Auto-clear `lastError` after this many ms so scan-rejection toasts don't stick. */
+  errorAutoDismissMs?: number;
 };
+
+/**
+ * Scan-rejection messages that fire per camera frame while a QR is in view
+ * (the same `ts`+`nonce` decoded multiple times before the player's QR
+ * regenerates). Surfacing them in `lastError` would mean a permanent red
+ * banner during normal gameplay, so we drop them silently — the rejection
+ * is by design and the successful scan, when it lands, updates the state.
+ */
+const SILENT_SCAN_ERRORS = new Set<string>(["duplicate nonce"]);
 
 function defaultBuildUrl(code: string, playerId: string): string {
   const proto = window.location.protocol === "https:" ? "wss" : "ws";
@@ -117,6 +129,7 @@ export function createWsStore(deps: WsStoreDeps): WsStore {
   const clock = deps.clock ?? systemClock;
   const buildUrl = deps.buildUrl ?? defaultBuildUrl;
   const reconnectDelayMs = deps.reconnectDelayMs ?? 1500;
+  const errorAutoDismissMs = deps.errorAutoDismissMs ?? 3000;
 
   return create<WsStoreState>((set, get) => ({
     connected: false,
@@ -129,6 +142,7 @@ export function createWsStore(deps: WsStoreDeps): WsStore {
     lastError: null,
     socket: null,
     reconnectTimer: null,
+    errorClearTimer: null,
     inactivity: null,
     closed: null,
     lastScanEvent: null,
@@ -136,7 +150,9 @@ export function createWsStore(deps: WsStoreDeps): WsStore {
     connect(code, playerId, role) {
       get().disconnect();
       const ws = deps.socketFactory(buildUrl(code, playerId));
-      set({ socket: ws, role, lastError: null });
+      const { errorClearTimer } = get();
+      if (errorClearTimer !== null) clock.clearTimeout(errorClearTimer);
+      set({ socket: ws, role, lastError: null, errorClearTimer: null });
 
       ws.addEventListener("open", () => {
         set({ connected: true });
@@ -160,7 +176,18 @@ export function createWsStore(deps: WsStoreDeps): WsStore {
             const scan = parseScanEvent(data.event);
             if (scan) set({ lastScanEvent: scan });
           } else if (data.t === "error") {
-            set({ lastError: data.message });
+            if (SILENT_SCAN_ERRORS.has(data.message)) {
+              // Per-frame camera echo (e.g., duplicate nonce). Drop silently
+              // so the room banner doesn't sit red during normal scanning.
+            } else {
+              const prev = get().errorClearTimer;
+              if (prev !== null) clock.clearTimeout(prev);
+              const timer = clock.setTimeout(
+                () => set({ lastError: null, errorClearTimer: null }),
+                errorAutoDismissMs,
+              );
+              set({ lastError: data.message, errorClearTimer: timer });
+            }
           } else if (data.t === "inactivity-warning") {
             set({ inactivity: { closeAt: data.closeAt } });
           } else if (data.t === "inactivity-cleared") {
@@ -188,9 +215,12 @@ export function createWsStore(deps: WsStoreDeps): WsStore {
     },
 
     disconnect() {
-      const { socket, reconnectTimer } = get();
+      const { socket, reconnectTimer, errorClearTimer } = get();
       if (reconnectTimer !== null) {
         clock.clearTimeout(reconnectTimer);
+      }
+      if (errorClearTimer !== null) {
+        clock.clearTimeout(errorClearTimer);
       }
       if (socket) {
         try {
@@ -199,7 +229,7 @@ export function createWsStore(deps: WsStoreDeps): WsStore {
           // ignore
         }
       }
-      set({ socket: null, reconnectTimer: null, connected: false });
+      set({ socket: null, reconnectTimer: null, errorClearTimer: null, connected: false });
     },
 
     send(msg) {

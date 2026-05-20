@@ -144,6 +144,36 @@ describe("createWsStore", () => {
     expect(useWs.getState().lastError).toBe("boom");
   });
 
+  it("lastError は errorAutoDismissMs 経過後に自動でクリアされる", () => {
+    const { useWs, sockets, advance } = setup();
+    useWs.getState().connect("ABC", "p1", "client");
+    sockets[0]?.emitOpen();
+    sockets[0]?.emitMessage({ t: "error", message: "unknown player" });
+    expect(useWs.getState().lastError).toBe("unknown player");
+    advance(3000);
+    expect(useWs.getState().lastError).toBeNull();
+  });
+
+  it("duplicate nonce はカメラのフレーム連射なので lastError に出さない", () => {
+    const { useWs, sockets } = setup();
+    useWs.getState().connect("ABC", "p1", "client");
+    sockets[0]?.emitOpen();
+    sockets[0]?.emitMessage({ t: "error", message: "duplicate nonce" });
+    expect(useWs.getState().lastError).toBeNull();
+  });
+
+  it("新しい error が来ると古い自動クリアタイマーは置き換わる", () => {
+    const { useWs, sockets, pending, advance } = setup();
+    useWs.getState().connect("ABC", "p1", "client");
+    sockets[0]?.emitOpen();
+    sockets[0]?.emitMessage({ t: "error", message: "first" });
+    sockets[0]?.emitMessage({ t: "error", message: "second" });
+    // first の auto-clear がそのまま走っても "second" を消してはいけない。
+    expect(pending.filter((t) => t.ms === 3000)).toHaveLength(1);
+    advance(3000);
+    expect(useWs.getState().lastError).toBeNull();
+  });
+
   it("close 後、clock.setTimeout 経由で再接続する", () => {
     const { useWs, sockets, pending, advance } = setup();
     useWs.getState().connect("ABC", "p1", "client");
