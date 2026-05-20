@@ -11,7 +11,8 @@
       "**/coverage",
       "**/playwright-report",
       "**/test-results",
-      "**/.github"
+      "**/.github",
+      "**/.impeccable"
     ]
   },
   "formatter": {

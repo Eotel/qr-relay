@@ -1,3 +1,4 @@
+import type { Phase } from "@qr-relay/core";
 import type { Preset } from "@qr-relay/handlers";
 
 export type RoomInfo = {
@@ -5,8 +6,8 @@ export type RoomInfo = {
   handlerId: string;
   handlerConfig: unknown;
   createdAt: number;
-  startedAt: number | null;
-  endedAt: number | null;
+  hostId: string | null;
+  phase: Phase;
 };
 
 export type RoomSnapshot = {
@@ -27,13 +28,11 @@ export type ApiClient = {
   listHandlersAndPresets: () => Promise<HandlersAndPresets>;
   createRoom: (handlerId: string, handlerConfig: unknown) => Promise<string>;
   getRoom: (code: string) => Promise<RoomSnapshot>;
-  joinRoom: (
-    code: string,
-    playerId: string,
-    name: string,
-    role: JoinRole,
-  ) => Promise<RoomSnapshot>;
+  joinRoom: (code: string, playerId: string, name: string, role: JoinRole) => Promise<RoomSnapshot>;
   startRoom: (code: string) => Promise<void>;
+  pauseRoom: (code: string) => Promise<void>;
+  resumeRoom: (code: string) => Promise<void>;
+  resetRoom: (code: string) => Promise<void>;
 };
 
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
@@ -87,6 +86,27 @@ export function createApiClient(fetchImpl: FetchLike): ApiClient {
         method: "POST",
       });
       if (!res.ok) throw new Error(`start failed: ${res.status}`);
+    },
+
+    async pauseRoom(code) {
+      const res = await fetchImpl(`/api/rooms/${encodeURIComponent(code)}/pause`, {
+        method: "POST",
+      });
+      if (!res.ok) throw new Error(`pause failed: ${res.status}`);
+    },
+
+    async resumeRoom(code) {
+      const res = await fetchImpl(`/api/rooms/${encodeURIComponent(code)}/resume`, {
+        method: "POST",
+      });
+      if (!res.ok) throw new Error(`resume failed: ${res.status}`);
+    },
+
+    async resetRoom(code) {
+      const res = await fetchImpl(`/api/rooms/${encodeURIComponent(code)}/reset`, {
+        method: "POST",
+      });
+      if (!res.ok) throw new Error(`reset failed: ${res.status}`);
     },
   };
 }

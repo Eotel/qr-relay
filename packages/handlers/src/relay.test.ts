@@ -1,7 +1,7 @@
 import type { Player } from "@qr-relay/core";
 import { describe, expect, it } from "vitest";
 import { presetById } from "./presets.js";
-import type { RelayState, ValueSlot } from "./relay-rule.js";
+import type { RelayState, ScanRule, ValueSlot } from "./relay-rule.js";
 import { relayHandler } from "./relay.js";
 
 function makePlayers(n: number): Player[] {
@@ -14,7 +14,7 @@ function makePlayers(n: number): Player[] {
 
 function scan(
   state: RelayState,
-  config: ReturnType<typeof getRule>,
+  config: ScanRule,
   scanner: Player,
   scanned: Player,
   now: number,
@@ -29,7 +29,7 @@ function scan(
   }).nextState;
 }
 
-function getRule(presetId: string) {
+function getRule(presetId: string): ScanRule {
   const rule = presetById[presetId]?.rule;
   if (!rule) throw new Error(`Unknown preset: ${presetId}`);
   return rule;
@@ -53,28 +53,50 @@ describe("relay handler - baton", () => {
   });
 
   it("scan: p2 scans p1(holder) → token moves to p2", () => {
-    // baton preset: source:lose, sink:gain. requireSourceHas:true (must be holder).
-    // requireSinkLacks:true (sink must not have token yet).
     const s0 = relayHandler.initialState({ config: rule, players, now: 0 });
-    const s1 = scan(s0, rule, p2, p1, 1); // p2 scans p1's QR
+    const s1 = scan(s0, rule, p2, p1, 1);
     expect(slotOf(s1, p2.id)).toEqual({ kind: "token", has: true });
     expect(slotOf(s1, p1.id)).toEqual({ kind: "token", has: false });
   });
 
   it("scan: non-holder scanning non-holder is rejected", () => {
     const s0 = relayHandler.initialState({ config: rule, players, now: 0 });
-    const s1 = scan(s0, rule, p2, p3, 1); // neither has token
+    const s1 = scan(s0, rule, p2, p3, 1);
     expect(slotOf(s1, p2.id)).toEqual({ kind: "token", has: false });
     expect(slotOf(s1, p3.id)).toEqual({ kind: "token", has: false });
   });
 
   it("scan: token-holder scanning non-holder is rejected (sink already has)", () => {
-    // p1 has token, scans p2 (non-holder). requireSinkLacks:true means sink (p1) must lack.
-    // p1 has token, so this should be rejected.
     const s0 = relayHandler.initialState({ config: rule, players, now: 0 });
     const s1 = scan(s0, rule, p1, p2, 1);
     expect(slotOf(s1, p1.id)).toEqual({ kind: "token", has: true });
     expect(slotOf(s1, p2.id)).toEqual({ kind: "token", has: false });
+  });
+});
+
+describe("relay handler - infection (token-based)", () => {
+  const rule = getRule("infection");
+  const players = makePlayers(3);
+  const [p1, p2, p3] = players as [Player, Player, Player];
+
+  it("first player starts infected, others healthy", () => {
+    const s0 = relayHandler.initialState({ config: rule, players, now: 0 });
+    expect(slotOf(s0, p1.id)).toEqual({ kind: "token", has: true });
+    expect(slotOf(s0, p2.id)).toEqual({ kind: "token", has: false });
+  });
+
+  it("scanning an infected spreads (source keeps, sink gains)", () => {
+    const s0 = relayHandler.initialState({ config: rule, players, now: 0 });
+    const s1 = scan(s0, rule, p2, p1, 1); // p2 scans p1 (infected)
+    expect(slotOf(s1, p1.id)).toEqual({ kind: "token", has: true });
+    expect(slotOf(s1, p2.id)).toEqual({ kind: "token", has: true });
+  });
+
+  it("scanning a non-infected is rejected (requireSourceHas)", () => {
+    const s0 = relayHandler.initialState({ config: rule, players, now: 0 });
+    const s1 = scan(s0, rule, p2, p3, 1); // p3 not infected
+    expect(slotOf(s1, p2.id)).toEqual({ kind: "token", has: false });
+    expect(slotOf(s1, p3.id)).toEqual({ kind: "token", has: false });
   });
 });
 
@@ -131,111 +153,15 @@ describe("relay handler - steal", () => {
   });
 
   it("cannot go below minValue: 0", () => {
-    const rule0 = getRule("steal");
     const players2 = makePlayers(2);
-    let s = relayHandler.initialState({ config: rule0, players: players2, now: 0 });
-    // Drain p2 to 0
+    let s = relayHandler.initialState({ config: rule, players: players2, now: 0 });
     for (let i = 0; i < 15; i++) {
-      s = scan(s, rule0, players2[0] as Player, players2[1] as Player, i);
+      s = scan(s, rule, players2[0] as Player, players2[1] as Player, i);
     }
     const p2 = players2[1];
     if (!p2) throw new Error("expected p2");
     const slot2 = slotOf(s, p2.id);
     expect(slot2.kind === "score" && slot2.amount).toBe(0);
-  });
-});
-
-describe("relay handler - tag (鬼ごっこ)", () => {
-  const rule = getRule("tag");
-  const players = makePlayers(3);
-  const [p1, p2, p3] = players as [Player, Player, Player];
-
-  it("first player starts as oni", () => {
-    const s0 = relayHandler.initialState({ config: rule, players, now: 0 });
-    const slot1 = slotOf(s0, p1.id);
-    expect(slot1.kind === "status" && slot1.status).toBe("oni");
-    const slot2 = slotOf(s0, p2.id);
-    expect(slot2.kind === "status" && slot2.status).toBe("safe");
-  });
-
-  it("oni scans non-oni → non-oni becomes oni, original becomes safe", () => {
-    const s0 = relayHandler.initialState({ config: rule, players, now: 0 });
-    // requireSourceHas: "oni" means the SCANNED player must be oni.
-    // Tag-out: 鬼が誰かにタッチする = 鬼が QR をスキャンする?
-    // 鬼ごっこの自然な流れ: 鬼が他者を「タッチ」 = 鬼が他者の QR を読む = scanner:oni, scanned:non-oni
-    // ただし rule では requireSourceHas: "oni" (scanned must be oni)
-    // つまりこの仕様では「鬼の QR をスキャンした人が鬼になる」モデル
-    const s1 = scan(s0, rule, p2, p1, 1); // p2 scans p1(oni)
-    const slot1 = slotOf(s1, p1.id);
-    expect(slot1.kind === "status" && slot1.status).toBe("safe");
-    const slot2 = slotOf(s1, p2.id);
-    expect(slot2.kind === "status" && slot2.status).toBe("oni");
-  });
-
-  it("non-oni cannot scan another non-oni (requireSourceHas:oni fails)", () => {
-    const s0 = relayHandler.initialState({ config: rule, players, now: 0 });
-    const s1 = scan(s0, rule, p2, p3, 1); // p2 scans p3, neither is oni
-    expect(slotOf(s1, p2.id)).toEqual({ kind: "status", status: "safe" });
-    expect(slotOf(s1, p3.id)).toEqual({ kind: "status", status: "safe" });
-  });
-});
-
-describe("relay handler - infection", () => {
-  const rule = getRule("infection");
-  const players = makePlayers(3);
-  const [p1, p2, p3] = players as [Player, Player, Player];
-
-  it("infected spreads to scanner; original stays infected", () => {
-    const s0 = relayHandler.initialState({ config: rule, players, now: 0 });
-    const s1 = scan(s0, rule, p2, p1, 1); // p2 scans p1(infected)
-    expect(slotOf(s1, p1.id)).toEqual({ kind: "status", status: "infected" });
-    expect(slotOf(s1, p2.id)).toEqual({ kind: "status", status: "infected" });
-  });
-
-  it("isOver true when everyone infected", () => {
-    let s = relayHandler.initialState({ config: rule, players, now: 0 });
-    s = scan(s, rule, p2, p1, 1);
-    s = scan(s, rule, p3, p1, 2);
-    expect(relayHandler.isOver?.({ state: s, config: rule, now: 100 })).toBe(true);
-  });
-});
-
-describe("relay handler - oni-swap", () => {
-  const rule = getRule("oni-swap");
-  const players = makePlayers(2);
-  const [p1, p2] = players as [Player, Player];
-
-  it("swap: scanner and scanned exchange status", () => {
-    const s0 = relayHandler.initialState({ config: rule, players, now: 0 });
-    expect(slotOf(s0, p1.id)).toEqual({ kind: "status", status: "oni" });
-    const s1 = scan(s0, rule, p2, p1, 1); // p2 scans p1(oni)
-    expect(slotOf(s1, p1.id)).toEqual({ kind: "status", status: "safe" });
-    expect(slotOf(s1, p2.id)).toEqual({ kind: "status", status: "oni" });
-  });
-});
-
-describe("relay handler - quota", () => {
-  const rule = getRule("quota");
-  const players = makePlayers(15);
-
-  it("isOver true when someone reaches target", () => {
-    const p0 = players[0] as Player;
-    let s = relayHandler.initialState({ config: rule, players, now: 0 });
-    for (let i = 1; i <= 10; i++) {
-      s = scan(s, rule, p0, players[i] as Player, i);
-    }
-    expect(relayHandler.isOver?.({ state: s, config: rule, now: 100 })).toBe(true);
-  });
-});
-
-describe("relay handler - hot-potato", () => {
-  const rule = getRule("hot-potato");
-  const players = makePlayers(2);
-
-  it("isOver true after timer expires", () => {
-    const s = relayHandler.initialState({ config: rule, players, now: 0 });
-    expect(relayHandler.isOver?.({ state: s, config: rule, now: 30_000 })).toBe(false);
-    expect(relayHandler.isOver?.({ state: s, config: rule, now: 61_000 })).toBe(true);
   });
 });
 

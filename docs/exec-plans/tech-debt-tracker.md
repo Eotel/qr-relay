@@ -73,4 +73,9 @@ Last reviewed: 2026-05-19
 
 ## 解消したもの
 
-(まだなし)
+- **2026-05-20**: engine から `status` value kind / `end` 設定 / `swap` / `set-status`
+  を削除し、フェーズ状態機械をゲーム制御層に切り出した。
+  [ADR-0001](../adr/0001-drop-status-value-kind.md) /
+  [ADR-0002](../adr/0002-move-end-conditions-out-of-engine.md) /
+  [ADR-0003](../adr/0003-game-phase-state-machine.md)、実装プラン
+  [exec-plans/completed/2026-05-20-engine-simplification.md](completed/2026-05-20-engine-simplification.md)。

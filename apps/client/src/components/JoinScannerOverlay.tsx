@@ -1,8 +1,8 @@
 import { Button } from "@qr-relay/ui/button";
 import { X } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
-import { parseJoinPayload } from "../lib/join-url.js";
 import { useQrScanner } from "../hooks/useQrScanner.js";
+import { parseJoinPayload } from "../lib/join-url.js";
 
 type Props = {
   open: boolean;
@@ -33,6 +33,8 @@ export function JoinScannerOverlay({ open, onClose, onJoin }: Props) {
 
   return (
     <div
+      // biome-ignore lint/a11y/useSemanticElements: <dialog> auto-handles focus/escape semantics
+      //   we do not want for an in-place full-screen camera overlay (no top-layer, no inert backdrop).
       role="dialog"
       aria-modal="true"
       aria-label="参加用 QR をスキャン"

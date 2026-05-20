@@ -34,7 +34,9 @@ export const WsClientMsg = z.discriminatedUnion("t", [
   z.object({ t: z.literal("scan"), payload: ScanPayloadV1 }),
   z.object({ t: z.literal("ping") }),
   z.object({ t: z.literal("start") }),
-  z.object({ t: z.literal("end") }),
+  z.object({ t: z.literal("pause") }),
+  z.object({ t: z.literal("resume") }),
+  z.object({ t: z.literal("reset") }),
 ]);
 
 export type WsClientMsg = z.infer<typeof WsClientMsg>;

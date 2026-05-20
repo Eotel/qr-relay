@@ -1,6 +1,6 @@
 # ScanHandler Contract
 
-Last reviewed: 2026-05-19
+Last reviewed: 2026-05-20
 
 新しい遊び方を追加するときに参照するハンドラー仕様。多くの場合は
 **プリセット追加 (data 変更のみ)** で完結する。relay で表現できない novel ロジックが必要な
@@ -25,7 +25,6 @@ interface ScanHandler<TConfig, TState, TData> {
   onScan(args: { state; config; scanner; scanned; payloadData; now }):
     { nextState: TState; events: GameEvent[] };
   metrics(args: { state; config; players; now }): Metric[];
-  isOver?(args: { state; config; now }): boolean;
 }
 ```
 
@@ -36,12 +35,17 @@ interface ScanHandler<TConfig, TState, TData> {
 | `initialState` | ゲーム開始時の TState | なし。`now` は引数で受け取る |
 | `payloadFor` | プレイヤーが今 QR に載せるべき TData | なし。state からの投影 |
 | `onScan` | 状態遷移後の next state と発生 event | なし。決定的、純粋関数 |
-| `metrics` | UI 表示用の Metric (time / count / score) | なし |
-| `isOver` | 終了判定 (optional) | なし |
+| `metrics` | UI 表示用の Metric (count / score) | なし |
 
 すべて pure function。`Date.now()` / `Math.random()` / `fetch` を直接呼んではいけない。
 時刻は `now`、ランダム性が必要なら呼び出し側が引数で渡す。
 [core-beliefs.md §2](core-beliefs.md#2-handler-は-server--client-両方で動く-pure-function) 参照。
+
+**Phase / 終了条件は handler の責務ではない**: 「ゲームが開始しているか / 一時停止中か /
+終了したか」はゲーム制御層 (Durable Object の phase 状態機械) が握る。handler は
+「scan 1 回で値スロット 2 個をどう書き換えるか」だけに責任を絞っている
+([ADR-0002](../adr/0002-move-end-conditions-out-of-engine.md) /
+[ADR-0003](../adr/0003-game-phase-state-machine.md))。
 
 ---
 
@@ -49,8 +53,8 @@ interface ScanHandler<TConfig, TState, TData> {
 
 定義場所: [`packages/handlers/src/relay-rule.ts`](../../packages/handlers/src/relay-rule.ts)
 
-`relayHandler` の `TConfig` は `ScanRule`。6 軸の直交した option で 9 プリセット全てを
-表現している。
+`relayHandler` の `TConfig` は `ScanRule`。4 軸の直交した option で 5 プリセットを表現
+している。
 
 ### value: プレイヤーが何を保持するか
 
@@ -58,7 +62,9 @@ interface ScanHandler<TConfig, TState, TData> {
 |---|---|---|
 | `token` | 持つ / 持たない の boolean | — |
 | `score` | 数値 | `defaultAmount?` (初期値) |
-| `status` | 文字列ラベル (例 `"oni"`, `"infected"`) | `defaultStatus?` |
+
+`status` (ラベル付き token) 軸は廃止 ([ADR-0001](../adr/0001-drop-status-value-kind.md))。
+鬼ごっこ / 鬼交代は `token` で同形に書ける。
 
 ### initial: 初期配布
 
@@ -69,50 +75,38 @@ interface ScanHandler<TConfig, TState, TData> {
 | `"none"` | 誰も持っていない状態で開始 |
 | `string[]` | 指定 ID のプレイヤーに配る |
 
-`amount` (score 用初期値) と `status` (status 用初期値) も指定可能。
+`amount` (score 用初期値) も指定可能。
 
 ### onScan: スキャン発生時の変化
 
 `source` は **被スキャナ (=QR を見せた側)**、`sink` は **スキャナ (=カメラで読んだ側)**。
 両者を独立に指定する。
 
-| 値 | token に対する効果 | score に対する効果 | status に対する効果 |
-|---|---|---|---|
-| `"keep"` | 変化なし | 変化なし | 変化なし |
-| `"lose"` | `has = false` | `amount -= amount` | `status = "none"` |
-| `"gain"` | `has = true` | `amount += amount` | `status = "active"` (or sinkStatus/sourceStatus) |
-| `"increment"` | (なし) | `amount += amount` | (なし) |
-| `"decrement"` | (なし) | `amount -= amount` | (なし) |
-| `"set-status"` | (なし) | (なし) | `status = sinkStatus / sourceStatus` |
+| 値 | token に対する効果 | score に対する効果 |
+|---|---|---|
+| `"keep"` | 変化なし | 変化なし |
+| `"lose"` | `has = false` | `amount -= amount` |
+| `"gain"` | `has = true` | `amount += amount` |
+| `"increment"` | (なし) | `amount += amount` |
+| `"decrement"` | (なし) | `amount -= amount` |
 
-`amount?` は数値変化の量 (デフォルト 1)。`sourceStatus` / `sinkStatus` は `set-status`
-を使うときの値。`swap: true` なら source と sink の slot を丸ごと入れ替える (鬼交代用)。
+`amount?` は数値変化の量 (デフォルト 1)。
 
 ### constraints: 適用条件
 
 | フィールド | 意味 |
 |---|---|
 | `uniquePerPair` | 同じ (scanner, scanned) ペアの 2 回目以降を無視 |
-| `requireSourceHas` | `true` / `"oni"` 等。被スキャナがその状態を持っているときだけ作用 |
-| `requireSinkLacks` | スキャナがその状態を持っていないときだけ作用 |
+| `requireSourceHas` | `true` のとき: 被スキャナが値を持っている (token=has / score>0) ときだけ作用 |
+| `requireSinkLacks` | `true` のとき: スキャナが値を持っていないときだけ作用 |
 | `minValue` / `maxValue` | score の上下クランプ |
 | `direction` | (現状は `"either"` のみ実装) |
-
-### end: 終了条件
-
-```ts
-{ kind: "target", value: 10 }              // 誰かが target 値に到達
-{ kind: "all-have-status", status: "X" }   // 全員が指定 status になる
-{ kind: "only-one-left", status: "X" }     // 指定 status を持つ人が 1 人以下
-{ kind: "timer-ms", ms: 60_000 }           // 経過時間
-{ kind: "manual" }                          // /start で明示的に再開するまで終わらない
-```
 
 ---
 
 ## 新プリセット追加 5 ステップ
 
-例: 「10 秒ごとに鬼が増える」のように構造として既存に近いものを足す場合。
+例: 「相手の点数を奪うが、自分も 1 失う」のように構造として既存に近いものを足す場合。
 
 ### Step 1: presets.ts に entry を追加
 
@@ -121,25 +115,23 @@ interface ScanHandler<TConfig, TState, TData> {
 
 ```ts
 {
-  id: "infection-timed",
-  name: "感染 (時限)",
-  description: "感染者が近づくほど広がる。30 秒で全員感染なら勝ち。",
+  id: "trade",
+  name: "交換",
+  description: "スキャンすると相手から 1 点もらい、自分も 1 点失う。",
   rule: {
-    value: { kind: "status", defaultStatus: "healthy" },
-    initial: { holders: "one", status: "infected" },
-    onScan: { source: "keep", sink: "set-status", sinkStatus: "infected" },
-    constraints: { requireSourceHas: "infected" },
-    end: { kind: "timer-ms", ms: 30_000 },
+    value: { kind: "score", defaultAmount: 5 },
+    initial: { holders: "all", amount: 5 },
+    onScan: { source: "decrement", sink: "decrement", amount: 1 },
+    constraints: { minValue: 0 },
   },
 },
 ```
 
 ### Step 2: relay.test.ts にテストを追加
 
-[`packages/handlers/src/relay.test.ts`](../../packages/handlers/src/relay.test.ts) に既存の
-`describe("relay handler - infection", ...)` ブロックを参考に 2-3 ケース。最低でも
-`initialState` と「成立条件 (requireSourceHas) を満たす scan で state が変わる」を
-覆う。
+[`packages/handlers/src/relay.test.ts`](../../packages/handlers/src/relay.test.ts) の
+既存プリセット (`baton` / `infection` / `steal` 等) を参考に 2-3 ケース。最低でも
+`initialState` と「constraints を満たす scan で state が変わる」を覆う。
 
 ### Step 3: テスト実行
 
@@ -159,6 +151,27 @@ pnpm dev:server   # 別ターミナルで pnpm dev:client
 ```
 
 ブラウザで `/new` → 新プリセットが選択肢に出ているか、作成後 `/r/:code` で動くかを確認。
+
+---
+
+## ゲーム制御層 (engine の外)
+
+phase 状態機械 (`ready` / `running` / `paused`) と scan gating は
+`apps/server/src/room-domain.ts` の `reduceStart` / `reducePause` / `reduceResume` /
+`reduceReset` が担当する。詳細は
+[ADR-0003](../adr/0003-game-phase-state-machine.md)。
+
+ホスト操作 WS メッセージ:
+
+```ts
+| { t: "start" }     // ready → running
+| { t: "pause" }     // running → paused
+| { t: "resume" }    // paused → running
+| { t: "reset" }     // any → ready
+```
+
+scan は `reduceScan` 冒頭で `phase.kind !== "running"` を弾くので、handler は phase
+概念を一切持たなくて良い。
 
 ---
 
@@ -207,12 +220,18 @@ curl -s -X POST http://localhost:8787/api/rooms \
       }}'
 # → {"code":"XXXXXX"}
 
-# 3. 2 人 join + start
+# 3. host + 2 client が join、host が start
 curl -s -X POST http://localhost:8787/api/rooms/XXXXXX/join \
-  -H 'Content-Type: application/json' -d '{"playerId":"p1","name":"A"}'
+  -H 'Content-Type: application/json' \
+  -d '{"playerId":"h1","name":"Host","role":"host"}'
 curl -s -X POST http://localhost:8787/api/rooms/XXXXXX/join \
-  -H 'Content-Type: application/json' -d '{"playerId":"p2","name":"B"}'
+  -H 'Content-Type: application/json' \
+  -d '{"playerId":"p1","name":"A","role":"client"}'
+curl -s -X POST http://localhost:8787/api/rooms/XXXXXX/join \
+  -H 'Content-Type: application/json' \
+  -d '{"playerId":"p2","name":"B","role":"client"}'
 curl -s -X POST http://localhost:8787/api/rooms/XXXXXX/start
+# → {"ok":true,"room":{...,"phase":{"kind":"running",...}}}
 
 # 4. WS で scan (Node 21+ なら built-in WebSocket で書ける)
 node <<'EOF'
@@ -225,7 +244,13 @@ wsA.send(JSON.stringify({
   payload: { v: 1, rid: code, pid: "p2", ts: Date.now(), nonce: "n1" },
 }));
 EOF
-# → {"t":"state",...,"metrics":[{...,"byPlayer":{"p1":1,"p2":1}}]}
+# → {"t":"state",...,"phase":{"kind":"running",...},"metrics":[...]}
+
+# 5. pause / reset の確認
+curl -s -X POST http://localhost:8787/api/rooms/XXXXXX/pause
+# 以降の scan は {"t":"error","message":"game is not running"}
+curl -s -X POST http://localhost:8787/api/rooms/XXXXXX/reset
+# → state が initialState に戻る
 ```
 
 同じ nonce を 2 回送ったら `{"t":"error","message":"duplicate nonce"}` が返るのが

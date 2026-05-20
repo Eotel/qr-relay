@@ -39,3 +39,15 @@ export function joinRoom(code: string, playerId: string, name: string, role: Joi
 export function startRoom(code: string) {
   return activeClient.startRoom(code);
 }
+
+export function pauseRoom(code: string) {
+  return activeClient.pauseRoom(code);
+}
+
+export function resumeRoom(code: string) {
+  return activeClient.resumeRoom(code);
+}
+
+export function resetRoom(code: string) {
+  return activeClient.resetRoom(code);
+}

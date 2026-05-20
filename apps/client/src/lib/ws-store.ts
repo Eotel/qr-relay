@@ -1,10 +1,16 @@
-import type { Metric } from "@qr-relay/core";
+import type { Metric, Phase } from "@qr-relay/core";
 import { type StoreApi, type UseBoundStore, create } from "zustand";
 import type { RoomInfo } from "./api-client.js";
 import { type Clock, type TimerId, systemClock } from "./clock.js";
 
 export type WsMessage =
-  | { t: "state"; state: unknown; metrics: Metric[]; players: PlayerLite[] }
+  | {
+      t: "state";
+      state: unknown;
+      metrics: Metric[];
+      players: PlayerLite[];
+      phase?: Phase;
+    }
   | { t: "players"; players: PlayerLite[] }
   | { t: "event"; event: Record<string, unknown> }
   | { t: "error"; message: string }
@@ -19,6 +25,7 @@ export type WsStoreState = {
   players: PlayerLite[];
   state: unknown;
   metrics: Metric[];
+  phase: Phase;
   room: RoomInfo | null;
   role: WsRole | null;
   lastError: string | null;
@@ -29,7 +36,12 @@ export type WsStoreState = {
   send: (msg: unknown) => void;
   setRoom: (room: RoomInfo) => void;
   setRole: (role: WsRole | null) => void;
-  setSnapshot: (snap: { players?: PlayerLite[]; state?: unknown; metrics?: Metric[] }) => void;
+  setSnapshot: (snap: {
+    players?: PlayerLite[];
+    state?: unknown;
+    metrics?: Metric[];
+    phase?: Phase;
+  }) => void;
 };
 
 export type WsStoreDeps = {
@@ -46,6 +58,21 @@ function defaultBuildUrl(code: string, playerId: string): string {
   )}`;
 }
 
+/**
+ * Stopwatch elapsed time derived from phase + now. Pure so HostRoom can
+ * re-render at its own cadence without an extra source of truth.
+ */
+export function displayMs(phase: Phase, now: number): number {
+  switch (phase.kind) {
+    case "ready":
+      return 0;
+    case "paused":
+      return phase.accumulatedMs;
+    case "running":
+      return phase.accumulatedMs + Math.max(0, now - phase.startedAt);
+  }
+}
+
 export type WsStore = UseBoundStore<StoreApi<WsStoreState>>;
 
 export function createWsStore(deps: WsStoreDeps): WsStore {
@@ -58,6 +85,7 @@ export function createWsStore(deps: WsStoreDeps): WsStore {
     players: [],
     state: null,
     metrics: [],
+    phase: { kind: "ready" },
     room: null,
     role: null,
     lastError: null,
@@ -77,7 +105,12 @@ export function createWsStore(deps: WsStoreDeps): WsStore {
           const raw = (ev as MessageEvent).data;
           const data = JSON.parse(typeof raw === "string" ? raw : String(raw)) as WsMessage;
           if (data.t === "state") {
-            set({ state: data.state, metrics: data.metrics, players: data.players });
+            set((prev) => ({
+              state: data.state,
+              metrics: data.metrics,
+              players: data.players,
+              phase: data.phase ?? prev.phase,
+            }));
           } else if (data.t === "players") {
             set({ players: data.players });
           } else if (data.t === "error") {
@@ -119,7 +152,7 @@ export function createWsStore(deps: WsStoreDeps): WsStore {
     },
 
     setRoom(room) {
-      set({ room });
+      set({ room, phase: room.phase });
     },
 
     setRole(role) {
@@ -131,6 +164,7 @@ export function createWsStore(deps: WsStoreDeps): WsStore {
         players: snap.players ?? prev.players,
         state: snap.state ?? prev.state,
         metrics: snap.metrics ?? prev.metrics,
+        phase: snap.phase ?? prev.phase,
       }));
     },
   }));

@@ -1,28 +1,145 @@
 import { Button } from "@qr-relay/ui/button";
 import { Card } from "@qr-relay/ui/card";
 import { cn } from "@qr-relay/ui/cn";
-import { Play, RefreshCw } from "lucide-react";
+import { Pause, Play, RefreshCw } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { JoinQrDisplay, joinUrlFor } from "../components/JoinQrDisplay.js";
 import { MetricsPanel } from "../components/MetricsPanel.js";
-import { startRoom } from "../lib/api.js";
+import { pauseRoom, resetRoom, resumeRoom, startRoom } from "../lib/api.js";
+import { displayMs } from "../lib/ws-store.js";
 import { useWs } from "../lib/ws.js";
 import type { RoomOutletContext } from "./RoomLayout.js";
 
 const qrFrame =
   "relative flex aspect-square w-full max-w-[420px] items-center justify-center overflow-hidden rounded-[var(--radius-lg)] bg-white shadow-[var(--shadow-card)] dark:shadow-none";
 
+const RESET_CONFIRM_TIMEOUT_MS = 4000;
+
+type Pending = null | "start" | "pause" | "resume" | "reset";
+
+function describeError(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  return String(err);
+}
+
+function formatStopwatch(ms: number): string {
+  const totalSec = Math.floor(ms / 1000);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
 export function HostRoom() {
   const { code } = useOutletContext<RoomOutletContext>();
   const players = useWs((s) => s.players);
   const metrics = useWs((s) => s.metrics);
+  const phase = useWs((s) => s.phase);
 
-  const onStart = () => {
-    startRoom(code).catch(() => {});
+  const [pending, setPending] = useState<Pending>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [resetArmed, setResetArmed] = useState(false);
+  // Tick local clock so the running stopwatch updates without a server tick.
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    if (phase.kind !== "running") return;
+    const id = window.setInterval(() => setTick((t) => t + 1), 250);
+    return () => window.clearInterval(id);
+  }, [phase.kind]);
+
+  useEffect(() => {
+    if (!resetArmed) return;
+    const t = window.setTimeout(() => setResetArmed(false), RESET_CONFIRM_TIMEOUT_MS);
+    return () => window.clearTimeout(t);
+  }, [resetArmed]);
+
+  // `tick` is read here so the `running` interval forces a re-render and the
+  // displayed elapsed time keeps moving without a server-side tick.
+  void tick;
+  const elapsed = displayMs(phase, Date.now());
+
+  const run = async (kind: Exclude<Pending, null>, action: () => Promise<void>) => {
+    if (pending) return;
+    setActionError(null);
+    setResetArmed(false);
+    setPending(kind);
+    try {
+      await action();
+    } catch (err) {
+      setActionError(`${kind} できませんでした: ${describeError(err)}`);
+    } finally {
+      setPending(null);
+    }
   };
+
+  const onStart = () => run("start", () => startRoom(code));
+  const onPause = () => run("pause", () => pauseRoom(code));
+  const onResume = () => run("resume", () => resumeRoom(code));
+  const onReset = () => {
+    if (pending) return;
+    // ready 状態 (= 開始前 or リセット直後) は即時 reset (= no-op に近い)
+    if (phase.kind !== "ready" && !resetArmed) {
+      setResetArmed(true);
+      return;
+    }
+    void run("reset", () => resetRoom(code));
+  };
+
+  const primary = (() => {
+    if (phase.kind === "running") {
+      return {
+        label: pending === "pause" ? "一時停止中…" : "一時停止",
+        Icon: Pause,
+        onClick: onPause,
+        busy: pending === "pause",
+      };
+    }
+    if (phase.kind === "paused") {
+      return {
+        label: pending === "resume" ? "再開中…" : "再開",
+        Icon: Play,
+        onClick: onResume,
+        busy: pending === "resume",
+      };
+    }
+    return {
+      label: pending === "start" ? "起動中…" : "スタート",
+      Icon: Play,
+      onClick: onStart,
+      busy: pending === "start",
+    };
+  })();
+
+  const phaseLabel =
+    phase.kind === "running" ? "進行中" : phase.kind === "paused" ? "一時停止中" : "待機中";
 
   return (
     <section className="flex flex-1 flex-col gap-4">
+      <Card className="flex flex-col items-center gap-2 text-center">
+        <span className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-muted-foreground">
+          STOPWATCH
+        </span>
+        <strong
+          className="font-mono text-[64px] leading-none font-black tabular-nums tracking-tight sm:text-[88px]"
+          aria-live="polite"
+        >
+          {formatStopwatch(elapsed)}
+        </strong>
+        <span
+          className={cn(
+            "text-[11px] font-extrabold uppercase tracking-[0.18em]",
+            phase.kind === "running"
+              ? "text-secondary"
+              : phase.kind === "paused"
+                ? "text-destructive"
+                : "text-muted-foreground",
+          )}
+        >
+          {phaseLabel}
+        </span>
+      </Card>
+
       <Card className="flex flex-col items-center gap-3 text-center">
         <span className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-muted-foreground">
           ROOM CODE
@@ -30,7 +147,7 @@ export function HostRoom() {
         <strong className="text-[42px] leading-none font-black tracking-[0.18em] sm:text-[56px]">
           {code}
         </strong>
-        <p className="m-0 text-sm font-bold text-muted-foreground">
+        <p className="m-0 text-sm font-bold text-foreground/85">
           このQRをスキャンして参加してください
         </p>
         <div className="flex w-full justify-center">
@@ -38,7 +155,9 @@ export function HostRoom() {
             <JoinQrDisplay code={code} />
           </div>
         </div>
-        <p className="m-0 break-all text-[11px] text-muted-foreground">{joinUrlFor(code)}</p>
+        <p className="m-0 break-all text-[11px] font-medium text-foreground/75">
+          {joinUrlFor(code)}
+        </p>
       </Card>
 
       <Card className="flex flex-col gap-3">
@@ -49,7 +168,7 @@ export function HostRoom() {
           <span className="text-xs font-bold text-muted-foreground">{players.length}人</span>
         </div>
         {players.length === 0 ? (
-          <p className="m-0 text-sm text-muted-foreground">
+          <p className="m-0 text-sm text-foreground/85">
             まだ誰も参加していません。QR をスキャンしてもらいましょう。
           </p>
         ) : (
@@ -74,21 +193,69 @@ export function HostRoom() {
           スコアボード
         </h2>
         {metrics.length === 0 ? (
-          <p className="m-0 text-sm text-muted-foreground">スタート後にメトリクスが表示されます。</p>
+          <p className="m-0 text-sm text-foreground/85">スタート後にメトリクスが表示されます。</p>
         ) : (
           <MetricsPanel metrics={metrics} players={players} />
         )}
       </Card>
 
-      <div className="flex items-center justify-end gap-2">
-        <Button type="button" variant="outline" size="submit" onClick={onStart} className="w-auto">
-          <RefreshCw size={16} />
-          <span>リセット</span>
-        </Button>
-        <Button type="button" variant="primary" size="submit" onClick={onStart} className="w-auto">
-          <Play size={16} />
-          <span>スタート</span>
-        </Button>
+      <div
+        className={cn(
+          "sticky bottom-0 z-10 mt-2 -mx-3 -mb-[calc(0.75rem+env(safe-area-inset-bottom))]",
+          "border-t border-border/40 bg-background/85 px-3 pt-3",
+          "pb-[calc(env(safe-area-inset-bottom)+0.75rem)]",
+          "backdrop-blur supports-[backdrop-filter]:bg-background/70",
+          "dark:border-white/[0.08]",
+        )}
+      >
+        {actionError && (
+          <div
+            role="alert"
+            className={cn(
+              "mb-2 rounded-[var(--radius-md)] border border-destructive/40 bg-destructive/10",
+              "px-3 py-2 text-sm font-bold text-destructive",
+            )}
+          >
+            {actionError}
+          </div>
+        )}
+        <div className="flex items-center gap-2 sm:justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            size="submit"
+            onClick={onReset}
+            disabled={pending !== null}
+            aria-busy={pending === "reset"}
+            aria-live="polite"
+            className={cn(
+              "flex-1 sm:w-auto sm:flex-initial",
+              resetArmed && "border-destructive text-destructive hover:bg-destructive/10",
+            )}
+          >
+            <RefreshCw size={16} />
+            <span>
+              {pending === "reset"
+                ? "リセット中…"
+                : resetArmed
+                  ? "もう一度押して初期化"
+                  : "リセット"}
+            </span>
+          </Button>
+          <Button
+            type="button"
+            variant="primary"
+            size="submit"
+            onClick={primary.onClick}
+            disabled={pending !== null}
+            aria-busy={primary.busy}
+            aria-live="polite"
+            className="flex-1 sm:w-auto sm:flex-initial"
+          >
+            <primary.Icon size={16} />
+            <span>{primary.label}</span>
+          </Button>
+        </div>
       </div>
     </section>
   );

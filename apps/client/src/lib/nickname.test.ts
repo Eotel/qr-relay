@@ -40,9 +40,9 @@ const player = (id: string, name: string) => ({ id, name, joinedAt: 0 });
 describe("resolveNickname", () => {
   it("returns the input verbatim when no collision", async () => {
     const { resolveNickname } = await load();
-    expect(
-      resolveNickname({ input: "太郎", selfId: "me", players: [player("p1", "花子")] }),
-    ).toBe("太郎");
+    expect(resolveNickname({ input: "太郎", selfId: "me", players: [player("p1", "花子")] })).toBe(
+      "太郎",
+    );
   });
 
   it("falls back to a generated name when input is empty", async () => {

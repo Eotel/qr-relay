@@ -94,16 +94,18 @@ app.get("/api/rooms/:code", async (c) => {
   });
 });
 
-app.post("/api/rooms/:code/start", async (c) => {
-  const code = normalizeRoomCode(c.req.param("code"));
-  const id = c.env.ROOM.idFromName(`room:${code}`);
-  const stub = c.env.ROOM.get(id);
-  const res = await stub.fetch("https://ro/start", { method: "POST" });
-  return new Response(await res.text(), {
-    status: res.status,
-    headers: { "Content-Type": "application/json" },
+for (const action of ["start", "pause", "resume", "reset"] as const) {
+  app.post(`/api/rooms/:code/${action}`, async (c) => {
+    const code = normalizeRoomCode(c.req.param("code"));
+    const id = c.env.ROOM.idFromName(`room:${code}`);
+    const stub = c.env.ROOM.get(id);
+    const res = await stub.fetch(`https://ro/${action}`, { method: "POST" });
+    return new Response(await res.text(), {
+      status: res.status,
+      headers: { "Content-Type": "application/json" },
+    });
   });
-});
+}
 
 app.get("/ws/:code", async (c) => {
   if (c.req.header("upgrade")?.toLowerCase() !== "websocket") {

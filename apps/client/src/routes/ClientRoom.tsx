@@ -1,8 +1,7 @@
 import { ScanPayloadV1 } from "@qr-relay/core";
 import { Badge } from "@qr-relay/ui/badge";
-import { Card } from "@qr-relay/ui/card";
 import { cn } from "@qr-relay/ui/cn";
-import { Camera, LayoutGrid, QrCode } from "lucide-react";
+import { Camera, ChevronDown, LayoutGrid, QrCode } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { MetricsPanel } from "../components/MetricsPanel.js";
@@ -27,7 +26,10 @@ export function ClientRoom() {
 
   const players = useWs((s) => s.players);
   const metrics = useWs((s) => s.metrics);
+  const phase = useWs((s) => s.phase);
   const send = useWs((s) => s.send);
+
+  const isRunning = phase.kind === "running";
 
   useEffect(() => {
     const id = window.setInterval(() => setPayloadTick((t) => t + 1), 5000);
@@ -47,6 +49,7 @@ export function ClientRoom() {
   );
 
   const onScan = (raw: string) => {
+    if (!isRunning) return;
     let parsed: unknown;
     try {
       parsed = JSON.parse(raw);
@@ -65,19 +68,6 @@ export function ClientRoom() {
 
   return (
     <>
-      <Card className="flex flex-col gap-2">
-        <h2 className="m-0 text-sm font-extrabold uppercase tracking-[0.14em] text-muted-foreground">
-          自分のスコア
-        </h2>
-        {metrics.length === 0 ? (
-          <p className="m-0 text-sm text-muted-foreground">
-            ホストがスタートするとここに表示されます。
-          </p>
-        ) : (
-          <MetricsPanel metrics={metrics} players={players} selfId={playerId} />
-        )}
-      </Card>
-
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 flex-wrap items-center gap-1.5">
           {players.map((p) => (
@@ -114,10 +104,53 @@ export function ClientRoom() {
           <div className="flex min-h-0 flex-1 items-center justify-center landscape:min-w-0 md:min-w-0">
             <div className={cn(tileFrame, "bg-black text-white")}>
               <QrScannerView onScan={onScan} />
+              {!isRunning && (
+                <div
+                  aria-live="polite"
+                  className={cn(
+                    "absolute inset-0 flex flex-col items-center justify-center gap-1.5",
+                    "bg-black/70 text-center text-white backdrop-blur-sm",
+                  )}
+                >
+                  <span className="text-[11px] font-extrabold uppercase tracking-[0.18em]">
+                    {phase.kind === "paused" ? "一時停止中" : "開始待ち"}
+                  </span>
+                  <span className="text-xs font-medium text-white/80">
+                    ホストの操作を待っています
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         )}
       </section>
+
+      {/* Score panel lives below the play area as a collapsed disclosure.
+          Players spend most of the match on QR + camera; the score is glanced
+          at, not stared at. Keeping it closed by default reclaims the vertical
+          space the QR/camera tiles need on portrait phones. */}
+      {metrics.length > 0 && (
+        <details className="group rounded-[var(--radius-lg)] bg-card text-card-foreground shadow-[var(--shadow-card)] dark:border dark:border-white/10 dark:bg-white/[0.04] dark:shadow-none">
+          <summary
+            className={cn(
+              "flex cursor-pointer list-none items-center justify-between gap-2 px-5 py-3",
+              "text-sm font-extrabold uppercase tracking-[0.14em] text-muted-foreground",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background",
+              "[&::-webkit-details-marker]:hidden",
+            )}
+          >
+            <span>自分のスコア</span>
+            <ChevronDown
+              aria-hidden
+              size={14}
+              className="transition-transform duration-150 group-open:rotate-180"
+            />
+          </summary>
+          <div className="px-5 pb-4">
+            <MetricsPanel metrics={metrics} players={players} selfId={playerId} />
+          </div>
+        </details>
+      )}
     </>
   );
 }

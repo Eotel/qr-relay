@@ -29,20 +29,9 @@ describe("presets", () => {
     }
   });
 
-  it("ships the canonical preset set", () => {
-    // freeze the catalog so accidental rename/removal trips a test
+  it("ships the canonical 5 presets", () => {
     expect(presets.map((p) => p.id).sort()).toEqual(
-      [
-        "baton",
-        "collection",
-        "greeting",
-        "hot-potato",
-        "infection",
-        "oni-swap",
-        "quota",
-        "steal",
-        "tag",
-      ].sort(),
+      ["baton", "collection", "greeting", "infection", "steal"].sort(),
     );
   });
 });

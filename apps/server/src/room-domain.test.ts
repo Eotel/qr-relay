@@ -8,8 +8,12 @@ import {
   gcNonces,
   reduceInit,
   reduceJoin,
+  reducePause,
+  reduceReset,
+  reduceResume,
   reduceScan,
   reduceStart,
+  touchActivity,
 } from "./room-domain.js";
 
 const NOW = 1_700_000_000_000;
@@ -31,6 +35,7 @@ function makeStored(playerIds: string[] = ["p1", "p2"]): Stored {
     stored = reduceJoin(stored, { playerId: id, name: id, role: "client" }, NOW - 500);
   }
   const started = reduceStart(stored, NOW - 100);
+  if (started.kind !== "ok") throw new Error("fixture start failed");
   return started.stored;
 }
 
@@ -46,13 +51,13 @@ function payload(overrides: Partial<ScanPayloadV1> & { pid: string }): ScanPaylo
 }
 
 describe("reduceInit", () => {
-  it("既知 handler + 有効 config で stored を返す", () => {
+  it("既知 handler + 有効 config で stored を返す (phase=ready)", () => {
     const r = reduceInit({ code: "ABC123", handlerId: "relay", handlerConfig: TALLY_CONFIG }, NOW);
     expect(r.kind).toBe("ok");
     if (r.kind === "ok") {
       expect(r.stored.meta.code).toBe("ABC123");
       expect(r.stored.meta.createdAt).toBe(NOW);
-      expect(r.stored.meta.startedAt).toBeNull();
+      expect(r.stored.meta.phase).toEqual({ kind: "ready" });
       expect(r.stored.meta.hostId).toBeNull();
       expect(r.stored.players).toEqual([]);
     }
@@ -76,82 +81,173 @@ describe("reduceInit", () => {
       expect(r.body.issues).toBeDefined();
     }
   });
-
-  it("元の stored を変更しない (純粋)", () => {
-    const r1 = reduceInit({ code: "A", handlerId: "relay", handlerConfig: TALLY_CONFIG }, NOW);
-    const r2 = reduceInit({ code: "B", handlerId: "relay", handlerConfig: TALLY_CONFIG }, NOW + 1);
-    if (r1.kind !== "ok" || r2.kind !== "ok") throw new Error();
-    expect(r1.stored.meta.code).toBe("A");
-    expect(r2.stored.meta.code).toBe("B");
-  });
 });
 
 describe("reduceJoin", () => {
   it("新規プレイヤーを追加する (immutable)", () => {
-    const stored = makeStored([]);
-    const before = stored.players.length;
-    const next = reduceJoin(stored, { playerId: "p1", name: "Alice", role: "client" }, NOW);
+    const init = reduceInit(
+      { code: "A", handlerId: "relay", handlerConfig: TALLY_CONFIG },
+      NOW - 1,
+    );
+    if (init.kind !== "ok") throw new Error();
+    const before = init.stored.players.length;
+    const next = reduceJoin(init.stored, { playerId: "p1", name: "Alice", role: "client" }, NOW);
     expect(next.players).toHaveLength(before + 1);
     expect(next.players[before]).toMatchObject({ id: "p1", name: "Alice", joinedAt: NOW });
-    expect(stored.players).toHaveLength(before); // 元は変わらない
+    expect(init.stored.players).toHaveLength(before);
   });
 
   it("既存プレイヤーの name 変更で同 id のレコードを差し替え", () => {
-    let stored = makeStored([]);
-    stored = reduceJoin(stored, { playerId: "p1", name: "Alice", role: "client" }, NOW);
-    const updated = reduceJoin(
-      stored,
-      { playerId: "p1", name: "Alice2", role: "client" },
-      NOW + 1,
+    const init = reduceInit(
+      { code: "A", handlerId: "relay", handlerConfig: TALLY_CONFIG },
+      NOW - 1,
     );
-    expect(updated.players).toHaveLength(1);
-    expect(updated.players[0]?.name).toBe("Alice2");
-  });
-
-  it("既存プレイヤー同 name なら no-op", () => {
-    let stored = makeStored([]);
-    stored = reduceJoin(stored, { playerId: "p1", name: "Alice", role: "client" }, NOW);
-    const before = stored.players;
-    const next = reduceJoin(stored, { playerId: "p1", name: "Alice", role: "client" }, NOW + 1);
-    expect(next.players).toEqual(before);
+    if (init.kind !== "ok") throw new Error();
+    let stored = reduceJoin(init.stored, { playerId: "p1", name: "Alice", role: "client" }, NOW);
+    stored = reduceJoin(stored, { playerId: "p1", name: "Alice2", role: "client" }, NOW + 1);
+    expect(stored.players).toHaveLength(1);
+    expect(stored.players[0]?.name).toBe("Alice2");
   });
 
   it("role=host は players に追加せず hostId を確定する", () => {
-    const stored = makeStored([]);
-    const next = reduceJoin(stored, { playerId: "h1", name: "Host", role: "host" }, NOW);
+    const init = reduceInit(
+      { code: "A", handlerId: "relay", handlerConfig: TALLY_CONFIG },
+      NOW - 1,
+    );
+    if (init.kind !== "ok") throw new Error();
+    const next = reduceJoin(init.stored, { playerId: "h1", name: "Host", role: "host" }, NOW);
     expect(next.players).toHaveLength(0);
     expect(next.meta.hostId).toBe("h1");
   });
 
-  it("role=host を 2 回呼んでも最初の hostId を維持(client は変わらず追加)", () => {
-    let stored = makeStored([]);
-    stored = reduceJoin(stored, { playerId: "h1", name: "Host", role: "host" }, NOW);
+  it("role=host を 2 回呼んでも最初の hostId を維持", () => {
+    const init = reduceInit(
+      { code: "A", handlerId: "relay", handlerConfig: TALLY_CONFIG },
+      NOW - 1,
+    );
+    if (init.kind !== "ok") throw new Error();
+    let stored = reduceJoin(init.stored, { playerId: "h1", name: "Host", role: "host" }, NOW);
     stored = reduceJoin(stored, { playerId: "h2", name: "Host2", role: "host" }, NOW + 1);
-    expect(stored.meta.hostId).toBe("h1");
-    expect(stored.players).toHaveLength(0);
-    stored = reduceJoin(stored, { playerId: "p1", name: "Alice", role: "client" }, NOW + 2);
-    expect(stored.players).toHaveLength(1);
     expect(stored.meta.hostId).toBe("h1");
   });
 });
 
-describe("reduceStart", () => {
-  it("startedAt と initialState をセットし、metrics を返す", () => {
-    let stored = makeStored([]);
-    stored = reduceJoin(stored, { playerId: "p1", name: "A", role: "client" }, NOW - 10);
-    stored = reduceJoin(stored, { playerId: "p2", name: "B", role: "client" }, NOW - 5);
+describe("reduceStart (ready → running)", () => {
+  it("ready から running へ遷移し initialState を作る", () => {
+    const init = reduceInit(
+      { code: "A", handlerId: "relay", handlerConfig: TALLY_CONFIG },
+      NOW - 10,
+    );
+    if (init.kind !== "ok") throw new Error();
+    const stored = reduceJoin(init.stored, { playerId: "p1", name: "A", role: "client" }, NOW - 5);
     const r = reduceStart(stored, NOW);
-    expect(r.stored.meta.startedAt).toBe(NOW);
-    expect(r.stored.meta.endedAt).toBeNull();
+    expect(r.kind).toBe("ok");
+    if (r.kind !== "ok") return;
+    expect(r.stored.meta.phase).toEqual({ kind: "running", startedAt: NOW, accumulatedMs: 0 });
     expect(r.stored.state).toBeDefined();
     expect(Array.isArray(r.metrics)).toBe(true);
   });
 
-  it("元の stored を変更しない", () => {
-    const stored = makeStored();
-    const meta0 = { ...stored.meta };
-    reduceStart(stored, NOW + 999);
-    expect(stored.meta).toEqual(meta0);
+  it("running から呼ぶと error (二重 start 防止)", () => {
+    const stored = makeStored([]);
+    const r = reduceStart(stored, NOW);
+    expect(r.kind).toBe("error");
+    if (r.kind === "error") expect(r.message).toMatch(/running/);
+  });
+
+  it("元の stored を変更しない (純粋)", () => {
+    const init = reduceInit(
+      { code: "A", handlerId: "relay", handlerConfig: TALLY_CONFIG },
+      NOW - 1,
+    );
+    if (init.kind !== "ok") throw new Error();
+    const phase0 = init.stored.meta.phase;
+    reduceStart(init.stored, NOW + 999);
+    expect(init.stored.meta.phase).toEqual(phase0);
+  });
+});
+
+describe("reducePause / reduceResume", () => {
+  it("running → paused で accumulatedMs が積み上がる", () => {
+    const stored = makeStored([]);
+    // fixture started at NOW-100, so after NOW the running has been 100ms
+    const r = reducePause(stored, NOW);
+    expect(r.kind).toBe("ok");
+    if (r.kind !== "ok") return;
+    expect(r.stored.meta.phase).toMatchObject({ kind: "paused", accumulatedMs: 100 });
+  });
+
+  it("paused → running で accumulatedMs を保ち startedAt を更新", () => {
+    const stored = makeStored([]);
+    const paused = reducePause(stored, NOW);
+    if (paused.kind !== "ok") throw new Error();
+    const resumed = reduceResume(paused.stored, NOW + 50);
+    expect(resumed.kind).toBe("ok");
+    if (resumed.kind !== "ok") return;
+    expect(resumed.stored.meta.phase).toEqual({
+      kind: "running",
+      startedAt: NOW + 50,
+      accumulatedMs: 100,
+    });
+  });
+
+  it("ready からの pause / resume はどちらも error", () => {
+    const init = reduceInit(
+      { code: "A", handlerId: "relay", handlerConfig: TALLY_CONFIG },
+      NOW - 1,
+    );
+    if (init.kind !== "ok") throw new Error();
+    expect(reducePause(init.stored, NOW).kind).toBe("error");
+    expect(reduceResume(init.stored, NOW).kind).toBe("error");
+  });
+
+  it("running からの resume / paused からの pause は error", () => {
+    const stored = makeStored([]);
+    expect(reduceResume(stored, NOW).kind).toBe("error");
+    const paused = reducePause(stored, NOW);
+    if (paused.kind !== "ok") throw new Error();
+    expect(reducePause(paused.stored, NOW + 1).kind).toBe("error");
+  });
+});
+
+describe("reduceReset", () => {
+  it("running から ready へ戻し state を消す", () => {
+    const stored = makeStored(["p1", "p2"]);
+    const r = reduceReset(stored, NOW + 50);
+    expect(r.kind).toBe("ok");
+    if (r.kind !== "ok") return;
+    expect(r.stored.meta.phase).toEqual({ kind: "ready" });
+    expect(r.stored.state).toBeUndefined();
+  });
+
+  it("paused からの reset も ready へ", () => {
+    const stored = makeStored([]);
+    const paused = reducePause(stored, NOW);
+    if (paused.kind !== "ok") throw new Error();
+    const r = reduceReset(paused.stored, NOW + 10);
+    expect(r.kind).toBe("ok");
+    if (r.kind !== "ok") return;
+    expect(r.stored.meta.phase).toEqual({ kind: "ready" });
+  });
+
+  it("players と meta.code / hostId / handlerId は保持する", () => {
+    const init = reduceInit(
+      { code: "A", handlerId: "relay", handlerConfig: TALLY_CONFIG },
+      NOW - 20,
+    );
+    if (init.kind !== "ok") throw new Error();
+    let stored = reduceJoin(init.stored, { playerId: "h1", name: "Host", role: "host" }, NOW - 15);
+    stored = reduceJoin(stored, { playerId: "p1", name: "A", role: "client" }, NOW - 10);
+    const started = reduceStart(stored, NOW);
+    if (started.kind !== "ok") throw new Error();
+
+    const r = reduceReset(started.stored, NOW + 50);
+    expect(r.kind).toBe("ok");
+    if (r.kind !== "ok") return;
+    expect(r.stored.players).toEqual(started.stored.players);
+    expect(r.stored.meta.code).toBe(started.stored.meta.code);
+    expect(r.stored.meta.hostId).toBe(started.stored.meta.hostId);
+    expect(r.stored.meta.handlerId).toBe(started.stored.meta.handlerId);
   });
 });
 
@@ -178,6 +274,41 @@ describe("gcNonces", () => {
 });
 
 describe("reduceScan", () => {
+  it("phase != running なら error (ready)", () => {
+    const init = reduceInit(
+      { code: "ABC123", handlerId: "relay", handlerConfig: TALLY_CONFIG },
+      NOW - 1,
+    );
+    if (init.kind !== "ok") throw new Error();
+    let stored = reduceJoin(init.stored, { playerId: "p1", name: "A", role: "client" }, NOW - 1);
+    stored = reduceJoin(stored, { playerId: "p2", name: "B", role: "client" }, NOW - 1);
+    // start していない (= ready) で scan
+    const r = reduceScan({
+      stored,
+      scannerId: "p1",
+      payload: payload({ pid: "p2", nonce: "n0" }),
+      recentNonces: new Map(),
+      now: NOW,
+    });
+    expect(r.kind).toBe("error");
+    if (r.kind === "error") expect(r.message).toMatch(/not running/);
+  });
+
+  it("paused 中の scan は error (no-op)", () => {
+    const stored = makeStored();
+    const paused = reducePause(stored, NOW);
+    if (paused.kind !== "ok") throw new Error();
+    const r = reduceScan({
+      stored: paused.stored,
+      scannerId: "p1",
+      payload: payload({ pid: "p2", nonce: "n1" }),
+      recentNonces: new Map(),
+      now: NOW + 1,
+    });
+    expect(r.kind).toBe("error");
+    if (r.kind === "error") expect(r.message).toMatch(/not running/);
+  });
+
   it("TS が窓外なら error/timestamp out of window", () => {
     const stored = makeStored();
     const r = reduceScan({
@@ -248,21 +379,6 @@ describe("reduceScan", () => {
     }
   });
 
-  it("成功時に元の recentNonces / stored を変更しない", () => {
-    const stored = makeStored();
-    const baseNonces = new Map<string, number>();
-    const r = reduceScan({
-      stored,
-      scannerId: "p1",
-      payload: payload({ pid: "p2", nonce: "fresh" }),
-      recentNonces: baseNonces,
-      now: NOW,
-    });
-    expect(r.kind).toBe("ok");
-    expect(baseNonces.size).toBe(0);
-    expect(stored.meta.startedAt).not.toBeNull(); // fixture が start 済みであることの担保
-  });
-
   it("ホストが scan を発行しようとすると error/host cannot scan", () => {
     let stored = makeStored(["p1", "p2"]);
     stored = {
@@ -307,10 +423,123 @@ describe("reduceScan", () => {
       recentNonces: nonces,
       now: NOW,
     });
-    // GC で "old" は捨てられ、現スキャンが新たに登録される
     expect(r.kind).toBe("ok");
     if (r.kind === "ok") {
       expect(r.recentNonces.get("old")).toBe(NOW + NONCE_TTL_MS);
     }
+  });
+});
+
+describe("touchActivity / lastActivityAt", () => {
+  it("touchActivity は meta.lastActivityAt を now にし元を変更しない (純粋)", () => {
+    const stored = makeStored([]);
+    const before = stored.meta.lastActivityAt;
+    const next = touchActivity(stored, NOW + 5_000);
+    expect(next.meta.lastActivityAt).toBe(NOW + 5_000);
+    expect(stored.meta.lastActivityAt).toBe(before);
+  });
+
+  it("reduceInit は lastActivityAt = createdAt = now", () => {
+    const r = reduceInit({ code: "X", handlerId: "relay", handlerConfig: TALLY_CONFIG }, NOW);
+    expect(r.kind).toBe("ok");
+    if (r.kind === "ok") {
+      expect(r.stored.meta.lastActivityAt).toBe(NOW);
+      expect(r.stored.meta.createdAt).toBe(NOW);
+    }
+  });
+
+  it("reduceJoin (client 新規) は lastActivityAt を now に更新", () => {
+    const init = reduceInit(
+      { code: "A", handlerId: "relay", handlerConfig: TALLY_CONFIG },
+      NOW - 1_000,
+    );
+    if (init.kind !== "ok") throw new Error();
+    const next = reduceJoin(init.stored, { playerId: "p1", name: "A", role: "client" }, NOW);
+    expect(next.meta.lastActivityAt).toBe(NOW);
+  });
+
+  it("reduceJoin (host 初回) は lastActivityAt を now に更新", () => {
+    const init = reduceInit(
+      { code: "A", handlerId: "relay", handlerConfig: TALLY_CONFIG },
+      NOW - 1_000,
+    );
+    if (init.kind !== "ok") throw new Error();
+    const next = reduceJoin(init.stored, { playerId: "h1", name: "Host", role: "host" }, NOW);
+    expect(next.meta.hostId).toBe("h1");
+    expect(next.meta.lastActivityAt).toBe(NOW);
+  });
+
+  it("reduceJoin (host 二回目) でも lastActivityAt は更新する", () => {
+    const init = reduceInit(
+      { code: "A", handlerId: "relay", handlerConfig: TALLY_CONFIG },
+      NOW - 1_000,
+    );
+    if (init.kind !== "ok") throw new Error();
+    const first = reduceJoin(init.stored, { playerId: "h1", name: "Host", role: "host" }, NOW);
+    const second = reduceJoin(first, { playerId: "h2", name: "Host2", role: "host" }, NOW + 500);
+    expect(second.meta.hostId).toBe("h1");
+    expect(second.meta.lastActivityAt).toBe(NOW + 500);
+  });
+
+  it("reduceStart 成功時に lastActivityAt を now に更新", () => {
+    const init = reduceInit(
+      { code: "A", handlerId: "relay", handlerConfig: TALLY_CONFIG },
+      NOW - 1_000,
+    );
+    if (init.kind !== "ok") throw new Error();
+    const joined = reduceJoin(
+      init.stored,
+      { playerId: "p1", name: "A", role: "client" },
+      NOW - 500,
+    );
+    const r = reduceStart(joined, NOW);
+    expect(r.kind).toBe("ok");
+    if (r.kind === "ok") expect(r.stored.meta.lastActivityAt).toBe(NOW);
+  });
+
+  it("reduceReset 成功時に lastActivityAt を now に更新", () => {
+    const stored = makeStored(["p1"]);
+    const r = reduceReset(stored, NOW + 200);
+    expect(r.kind).toBe("ok");
+    if (r.kind === "ok") expect(r.stored.meta.lastActivityAt).toBe(NOW + 200);
+  });
+
+  it("reduceScan 成功時に lastActivityAt を now に更新", () => {
+    const stored = makeStored();
+    const r = reduceScan({
+      stored,
+      scannerId: "p1",
+      payload: payload({ pid: "p2", nonce: "fresh-lat" }),
+      recentNonces: new Map(),
+      now: NOW + 1_000,
+    });
+    expect(r.kind).toBe("ok");
+    if (r.kind === "ok") expect(r.stored.meta.lastActivityAt).toBe(NOW + 1_000);
+  });
+
+  it("reduceScan エラー時は lastActivityAt を更新しない (元の stored は不変)", () => {
+    const stored = makeStored();
+    const before = stored.meta.lastActivityAt;
+    reduceScan({
+      stored,
+      scannerId: "p1",
+      payload: payload({ pid: "p1", nonce: "self" }),
+      recentNonces: new Map(),
+      now: NOW + 1_000,
+    });
+    expect(stored.meta.lastActivityAt).toBe(before);
+  });
+
+  it("reducePause / reduceResume は lastActivityAt を変更しない (plan 仕様)", () => {
+    const stored = makeStored([]);
+    const before = stored.meta.lastActivityAt;
+    const paused = reducePause(stored, NOW + 1_000);
+    expect(paused.kind).toBe("ok");
+    if (paused.kind !== "ok") return;
+    expect(paused.stored.meta.lastActivityAt).toBe(before);
+    const resumed = reduceResume(paused.stored, NOW + 2_000);
+    expect(resumed.kind).toBe("ok");
+    if (resumed.kind !== "ok") return;
+    expect(resumed.stored.meta.lastActivityAt).toBe(before);
   });
 });

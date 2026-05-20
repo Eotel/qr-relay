@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Clock, TimerId } from "./clock.js";
-import { createWsStore } from "./ws-store.js";
+import { createWsStore, displayMs } from "./ws-store.js";
 
 class FakeWebSocket {
   static OPEN = 1;
@@ -204,5 +204,31 @@ describe("createWsStore", () => {
     useWs.getState().setSnapshot({ state: { foo: 1 } });
     expect(useWs.getState().state).toEqual({ foo: 1 });
     expect(useWs.getState().players[0]?.id).toBe("x");
+  });
+
+  it("state メッセージの phase でストア phase が更新される", () => {
+    const { useWs, sockets } = setup();
+    useWs.getState().connect("ABC", "p1", "host");
+    sockets[0]?.emitOpen();
+    sockets[0]?.emitMessage({
+      t: "state",
+      state: null,
+      metrics: [],
+      players: [],
+      phase: { kind: "running", startedAt: 1_000, accumulatedMs: 0 },
+    });
+    expect(useWs.getState().phase).toEqual({
+      kind: "running",
+      startedAt: 1_000,
+      accumulatedMs: 0,
+    });
+  });
+
+  it("displayMs: ready=0 / paused は accumulatedMs / running は accumulated + (now - startedAt)", () => {
+    expect(displayMs({ kind: "ready" }, 1_234)).toBe(0);
+    expect(displayMs({ kind: "paused", pausedAt: 100, accumulatedMs: 7_000 }, 9_999)).toBe(7_000);
+    expect(displayMs({ kind: "running", startedAt: 1_000, accumulatedMs: 2_500 }, 4_000)).toBe(
+      2_500 + 3_000,
+    );
   });
 });

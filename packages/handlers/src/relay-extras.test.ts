@@ -48,7 +48,7 @@ describe("initialState — holders modes", () => {
     };
     const state = relayHandler.initialState({ config: rule, players: [], now: 0 });
     expect(state.values).toEqual({});
-    expect(state.startedAt).toBe(0);
+    expect(state.history).toEqual([]);
   });
 });
 
@@ -99,105 +99,8 @@ describe("onScan — guards and counters", () => {
   });
 });
 
-describe("isOver — end conditions", () => {
-  const ps = players(2);
-  const [p1, p2] = ps as [Player, Player];
-
-  it("manual end never auto-finishes", () => {
-    const rule: ScanRule = {
-      value: { kind: "token" },
-      initial: { holders: "one" },
-      onScan: { source: "lose", sink: "gain" },
-      end: { kind: "manual" },
-    };
-    const s = relayHandler.initialState({ config: rule, players: ps, now: 0 });
-    expect(relayHandler.isOver?.({ state: s, config: rule, now: 9_999_999 })).toBe(false);
-  });
-
-  it("returns true once endedAt is set", () => {
-    const rule: ScanRule = {
-      value: { kind: "token" },
-      initial: { holders: "one" },
-      onScan: { source: "lose", sink: "gain" },
-      end: { kind: "manual" },
-    };
-    const s0 = relayHandler.initialState({ config: rule, players: ps, now: 0 });
-    const s1: RelayState = { ...s0, endedAt: 100 };
-    expect(relayHandler.isOver?.({ state: s1, config: rule, now: 0 })).toBe(true);
-  });
-
-  it("target on score: triggers when any player reaches threshold", () => {
-    const rule: ScanRule = {
-      value: { kind: "score", defaultAmount: 0 },
-      initial: { holders: "none" },
-      onScan: { source: "keep", sink: "increment", amount: 1 },
-      end: { kind: "target", value: 3 },
-    };
-    let s = relayHandler.initialState({ config: rule, players: ps, now: 0 });
-    expect(relayHandler.isOver?.({ state: s, config: rule, now: 1 })).toBe(false);
-    for (let i = 0; i < 3; i++) {
-      s = step(s, rule, p1, p2, i).nextState;
-    }
-    expect(relayHandler.isOver?.({ state: s, config: rule, now: 10 })).toBe(true);
-  });
-
-  it("only-one-left: true when at most one player still has the status", () => {
-    const rule: ScanRule = {
-      value: { kind: "status", defaultStatus: "safe" },
-      initial: { holders: "all", status: "alive" },
-      onScan: { source: "set-status", sink: "keep", sourceStatus: "out" },
-      end: { kind: "only-one-left", status: "alive" },
-    };
-    const s0 = relayHandler.initialState({ config: rule, players: ps, now: 0 });
-    expect(relayHandler.isOver?.({ state: s0, config: rule, now: 1 })).toBe(false);
-    const s1 = step(s0, rule, p1, p2, 1).nextState;
-    expect(relayHandler.isOver?.({ state: s1, config: rule, now: 2 })).toBe(true);
-  });
-
-  it("timer-ms: false before elapsed, true after", () => {
-    const rule: ScanRule = {
-      value: { kind: "token" },
-      initial: { holders: "one" },
-      onScan: { source: "lose", sink: "gain" },
-      end: { kind: "timer-ms", ms: 5_000 },
-    };
-    const s = relayHandler.initialState({ config: rule, players: ps, now: 1_000 });
-    expect(relayHandler.isOver?.({ state: s, config: rule, now: 5_999 })).toBe(false);
-    expect(relayHandler.isOver?.({ state: s, config: rule, now: 6_000 })).toBe(true);
-  });
-
-  it("no end config → never over (until endedAt is set explicitly)", () => {
-    const rule: ScanRule = {
-      value: { kind: "token" },
-      initial: { holders: "one" },
-      onScan: { source: "lose", sink: "gain" },
-    };
-    const s = relayHandler.initialState({ config: rule, players: ps, now: 0 });
-    expect(relayHandler.isOver?.({ state: s, config: rule, now: Number.MAX_SAFE_INTEGER })).toBe(
-      false,
-    );
-  });
-});
-
 describe("metrics", () => {
-  it("emits a status count per distinct status value", () => {
-    const rule: ScanRule = {
-      value: { kind: "status", defaultStatus: "safe" },
-      initial: { holders: "one", status: "oni" },
-      onScan: { source: "keep", sink: "keep" },
-    };
-    const ps = players(3);
-    const s = relayHandler.initialState({ config: rule, players: ps, now: 0 });
-    const metrics = relayHandler.metrics({ state: s, config: rule, players: ps, now: 1_000 });
-    const counts = metrics.filter((m) => m.kind === "count");
-    const labels = counts.map((m) => m.label);
-    expect(labels).toContain("oni");
-    expect(labels).toContain("safe");
-    const time = metrics.find((m) => m.kind === "time");
-    expect(time?.kind === "time" && time.ms).toBe(1_000);
-  });
-
-  it("token mode reports a 'holding' count metric", () => {
+  it("token mode reports a '保持中' count metric", () => {
     const rule: ScanRule = {
       value: { kind: "token" },
       initial: { holders: "one" },
@@ -211,5 +114,32 @@ describe("metrics", () => {
     if (holding && holding.kind === "count") {
       expect(holding.total).toBe(1);
     }
+  });
+
+  it("score mode reports a 'スコア' score metric with every player", () => {
+    const rule: ScanRule = {
+      value: { kind: "score", defaultAmount: 0 },
+      initial: { holders: "none" },
+      onScan: { source: "keep", sink: "increment", amount: 1 },
+    };
+    const ps = players(3);
+    const s = relayHandler.initialState({ config: rule, players: ps, now: 0 });
+    const metrics = relayHandler.metrics({ state: s, config: rule, players: ps, now: 0 });
+    const score = metrics.find((m) => m.kind === "score");
+    expect(score?.kind === "score" && Object.keys(score.byPlayer).sort()).toEqual(
+      ["p1", "p2", "p3"].sort(),
+    );
+  });
+
+  it("no time metric is emitted (phase lives outside engine)", () => {
+    const rule: ScanRule = {
+      value: { kind: "token" },
+      initial: { holders: "one" },
+      onScan: { source: "lose", sink: "gain" },
+    };
+    const ps = players(2);
+    const s = relayHandler.initialState({ config: rule, players: ps, now: 0 });
+    const metrics = relayHandler.metrics({ state: s, config: rule, players: ps, now: 100 });
+    expect(metrics.find((m) => m.kind === "time")).toBeUndefined();
   });
 });

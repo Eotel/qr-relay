@@ -83,7 +83,9 @@ describe("createApiClient", () => {
   it("getRoom: code を URL エンコードする", async () => {
     const fetchImpl = vi
       .fn()
-      .mockResolvedValueOnce(jsonResponse({ room: { code: "A B" }, players: [], state: null, metrics: [] }));
+      .mockResolvedValueOnce(
+        jsonResponse({ room: { code: "A B" }, players: [], state: null, metrics: [] }),
+      );
     const client = createApiClient(fetchImpl);
     await client.getRoom("A B");
     expect(fetchImpl).toHaveBeenCalledWith("/api/rooms/A%20B");
@@ -169,5 +171,21 @@ describe("createApiClient", () => {
     const fetchImpl = vi.fn().mockResolvedValueOnce(new Response(null, { status: 500 }));
     const client = createApiClient(fetchImpl);
     await expect(client.startRoom("ABC")).rejects.toThrow(/500/);
+  });
+
+  it("resetRoom: POST /api/rooms/:code/reset", async () => {
+    const fetchImpl = vi.fn().mockResolvedValueOnce(new Response(null, { status: 200 }));
+    const client = createApiClient(fetchImpl);
+    await client.resetRoom("ABC");
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "/api/rooms/ABC/reset",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("resetRoom: 失敗時は例外", async () => {
+    const fetchImpl = vi.fn().mockResolvedValueOnce(new Response(null, { status: 500 }));
+    const client = createApiClient(fetchImpl);
+    await expect(client.resetRoom("ABC")).rejects.toThrow(/500/);
   });
 });

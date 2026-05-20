@@ -1,6 +1,6 @@
 # Docs Index
 
-Last reviewed: 2026-05-19
+Last reviewed: 2026-05-20
 
 このリポジトリの永続的なドキュメントの system of record。エージェント向けの
 入口は [../AGENTS.md](../AGENTS.md)、コード構成の入口は
@@ -11,7 +11,8 @@ Last reviewed: 2026-05-19
 | カテゴリ | 場所 | 中身 |
 |---|---|---|
 | 設計判断 (durable) | [design-docs/](design-docs/index.md) | 採用した原則、ScanHandler 契約 |
-| プロダクト仕様 | [product-specs/](product-specs/index.md) | 9 プリセットの遊び方 |
+| 個別判断の証跡 (ADR) | [adr/](adr/README.md) | 「なぜ X を採用したか」を時系列で 1 件 1 ファイル |
+| プロダクト仕様 | [product-specs/](product-specs/index.md) | プリセットの遊び方 |
 | 実装計画 (active) | [exec-plans/active/](exec-plans/active/) | 進行中の多ターン作業 |
 | 実装計画 (完了) | [exec-plans/completed/](exec-plans/completed/) | 完了プランの記録 |
 | 技術的負債 | [exec-plans/tech-debt-tracker.md](exec-plans/tech-debt-tracker.md) | 既知の負債と対処方針 |

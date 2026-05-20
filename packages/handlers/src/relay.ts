@@ -11,11 +11,6 @@ function makeSlot(rule: ScanRule, holders: Set<string>, playerId: string): Value
       const initialAmount = rule.initial.amount ?? def;
       return { kind: "score", amount: has ? initialAmount : def };
     }
-    case "status": {
-      const def = rule.value.defaultStatus ?? "none";
-      const initialStatus = rule.initial.status ?? def;
-      return { kind: "status", status: has ? initialStatus : def };
-    }
   }
 }
 
@@ -39,29 +34,23 @@ function clamp(n: number, min: number | undefined, max: number | undefined): num
   return v;
 }
 
-function slotHasStatus(slot: ValueSlot, expected: boolean | string): boolean {
-  if (typeof expected === "boolean") {
-    switch (slot.kind) {
-      case "token":
-        return slot.has === expected;
-      case "score":
-        return expected ? slot.amount > 0 : slot.amount <= 0;
-      case "status":
-        return expected ? slot.status !== "none" : slot.status === "none";
-    }
+function slotHas(slot: ValueSlot): boolean {
+  switch (slot.kind) {
+    case "token":
+      return slot.has;
+    case "score":
+      return slot.amount > 0;
   }
-  return slot.kind === "status" && slot.status === expected;
 }
 
-function slotLacksStatus(slot: ValueSlot, expected: boolean | string): boolean {
-  return !slotHasStatus(slot, expected);
+function slotLacks(slot: ValueSlot): boolean {
+  return !slotHas(slot);
 }
 
 function applyChange(
   slot: ValueSlot,
   change: ScanRule["onScan"]["source"] | ScanRule["onScan"]["sink"],
   amount: number,
-  newStatus: string | undefined,
   rule: ScanRule,
 ): ValueSlot {
   if (slot.kind === "token") {
@@ -74,53 +63,32 @@ function applyChange(
         return { kind: "token", has: true };
       case "increment":
       case "decrement":
-      case "set-status":
         return slot;
     }
   }
-  if (slot.kind === "score") {
-    const max = rule.constraints?.maxValue;
-    const min = rule.constraints?.minValue ?? 0;
-    switch (change) {
-      case "keep":
-        return slot;
-      case "increment":
-      case "gain":
-        return { kind: "score", amount: clamp(slot.amount + amount, min, max) };
-      case "decrement":
-      case "lose":
-        return { kind: "score", amount: clamp(slot.amount - amount, min, max) };
-      case "set-status":
-        return slot;
-    }
+  const max = rule.constraints?.maxValue;
+  const min = rule.constraints?.minValue ?? 0;
+  switch (change) {
+    case "keep":
+      return slot;
+    case "increment":
+    case "gain":
+      return { kind: "score", amount: clamp(slot.amount + amount, min, max) };
+    case "decrement":
+    case "lose":
+      return { kind: "score", amount: clamp(slot.amount - amount, min, max) };
   }
-  if (slot.kind === "status") {
-    switch (change) {
-      case "keep":
-        return slot;
-      case "set-status":
-        return { kind: "status", status: newStatus ?? slot.status };
-      case "lose":
-        return { kind: "status", status: "none" };
-      case "gain":
-        return { kind: "status", status: newStatus ?? "active" };
-      case "increment":
-      case "decrement":
-        return slot;
-    }
-  }
-  return slot;
 }
 
 export const relayHandler: ScanHandler<ScanRule, RelayState, unknown> = {
   id: "relay",
   name: "Relay Engine",
   description:
-    "汎用スキャン交換エンジン。プリセット (バトン / 奪い合い / 鬼ごっこ など) を ScanRule として渡す",
+    "汎用スキャン交換エンジン。プリセット (バトン / 感染 / 奪い合い など) を ScanRule として渡す",
   configSchema: ScanRule,
   dataSchema: ScanRuleData,
 
-  initialState({ config, players, now }) {
+  initialState({ config, players }) {
     const rule = config;
     const holders = resolveInitialHolders(rule, players);
     const values: Record<string, ValueSlot> = {};
@@ -131,8 +99,6 @@ export const relayHandler: ScanHandler<ScanRule, RelayState, unknown> = {
       values,
       scanCounts: {},
       pairCounts: {},
-      startedAt: now,
-      endedAt: null,
       history: [],
     };
   },
@@ -148,7 +114,6 @@ export const relayHandler: ScanHandler<ScanRule, RelayState, unknown> = {
     const amount = rule.onScan.amount ?? 1;
     const constraints = rule.constraints ?? {};
 
-    // uniquePerPair
     const pairKey = `${scanner.id}>${scanned.id}`;
     if (constraints.uniquePerPair && (state.pairCounts[pairKey] ?? 0) > 0) {
       return { nextState: state, events };
@@ -160,41 +125,21 @@ export const relayHandler: ScanHandler<ScanRule, RelayState, unknown> = {
       return { nextState: state, events };
     }
 
-    if (
-      constraints.requireSourceHas !== undefined &&
-      !slotHasStatus(scannedSlot, constraints.requireSourceHas)
-    ) {
+    if (constraints.requireSourceHas === true && !slotHas(scannedSlot)) {
       return { nextState: state, events };
     }
-    if (
-      constraints.requireSinkLacks !== undefined &&
-      !slotLacksStatus(scannerSlot, constraints.requireSinkLacks)
-    ) {
+    if (constraints.requireSourceHas === false && slotHas(scannedSlot)) {
+      return { nextState: state, events };
+    }
+    if (constraints.requireSinkLacks === true && !slotLacks(scannerSlot)) {
+      return { nextState: state, events };
+    }
+    if (constraints.requireSinkLacks === false && slotLacks(scannerSlot)) {
       return { nextState: state, events };
     }
 
-    let nextScanner: ValueSlot = scannerSlot;
-    let nextScanned: ValueSlot = scannedSlot;
-
-    if (rule.onScan.swap) {
-      nextScanner = scannedSlot;
-      nextScanned = scannerSlot;
-    } else {
-      nextScanned = applyChange(
-        scannedSlot,
-        rule.onScan.source,
-        amount,
-        rule.onScan.sourceStatus,
-        rule,
-      );
-      nextScanner = applyChange(
-        scannerSlot,
-        rule.onScan.sink,
-        amount,
-        rule.onScan.sinkStatus,
-        rule,
-      );
-    }
+    const nextScanned = applyChange(scannedSlot, rule.onScan.source, amount, rule);
+    const nextScanner = applyChange(scannerSlot, rule.onScan.sink, amount, rule);
 
     const nextValues = {
       ...state.values,
@@ -220,7 +165,7 @@ export const relayHandler: ScanHandler<ScanRule, RelayState, unknown> = {
     return { nextState, events };
   },
 
-  metrics({ state, config, players, now }) {
+  metrics({ state, config, players }) {
     const metrics: Metric[] = [];
     const rule = config;
 
@@ -255,53 +200,6 @@ export const relayHandler: ScanHandler<ScanRule, RelayState, unknown> = {
       });
     }
 
-    if (rule.value.kind === "status") {
-      const byStatus: Record<string, number> = {};
-      for (const p of players) {
-        const slot = state.values[p.id];
-        if (slot && slot.kind === "status") {
-          byStatus[slot.status] = (byStatus[slot.status] ?? 0) + 1;
-        }
-      }
-      for (const [status, count] of Object.entries(byStatus)) {
-        metrics.push({ kind: "count", label: `${status}`, total: count });
-      }
-    }
-
-    const elapsed = (state.endedAt ?? now) - state.startedAt;
-    metrics.push({ kind: "time", label: "経過時間", ms: elapsed });
-
     return metrics;
-  },
-
-  isOver({ state, config, now }) {
-    if (state.endedAt !== null) return true;
-    const end = config.end;
-    if (!end || end.kind === "manual") return false;
-
-    switch (end.kind) {
-      case "target": {
-        if (config.value.kind === "score") {
-          return Object.values(state.values).some(
-            (slot) => slot.kind === "score" && slot.amount >= end.value,
-          );
-        }
-        return Object.values(state.scanCounts).some((c) => c >= end.value);
-      }
-      case "all-have-status":
-        return Object.values(state.values).every(
-          (slot) => slot.kind === "status" && slot.status === end.status,
-        );
-      case "only-one-left": {
-        const matching = Object.values(state.values).filter(
-          (slot) => slot.kind === "status" && slot.status === end.status,
-        );
-        return matching.length <= 1;
-      }
-      case "timer-ms":
-        return now - state.startedAt >= end.ms;
-      default:
-        return false;
-    }
   },
 };

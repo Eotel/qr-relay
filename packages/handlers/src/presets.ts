@@ -20,15 +20,14 @@ export const presets: Preset[] = [
     },
   },
   {
-    id: "hot-potato",
-    name: "ホットポテト",
-    description: "バトンと同じ動きだが、一定時間後に止まった人が負け。",
+    id: "infection",
+    name: "感染",
+    description: "感染者の QR をスキャンすると感染。感染者は減らない (= 雪だるま式に広がる)。",
     rule: {
       value: { kind: "token" },
       initial: { holders: "one" },
-      onScan: { source: "lose", sink: "gain" },
-      constraints: { requireSourceHas: true, requireSinkLacks: true },
-      end: { kind: "timer-ms", ms: 60_000 },
+      onScan: { source: "keep", sink: "gain" },
+      constraints: { requireSourceHas: true },
     },
   },
   {
@@ -61,57 +60,6 @@ export const presets: Preset[] = [
       value: { kind: "score", defaultAmount: 0 },
       initial: { holders: "none" },
       onScan: { source: "increment", sink: "increment", amount: 1 },
-    },
-  },
-  {
-    id: "quota",
-    name: "ノルマ",
-    description: "10 人と出会えたら達成。",
-    rule: {
-      value: { kind: "score", defaultAmount: 0 },
-      initial: { holders: "none" },
-      onScan: { source: "keep", sink: "increment", amount: 1 },
-      constraints: { uniquePerPair: true },
-      end: { kind: "target", value: 10 },
-    },
-  },
-  {
-    id: "tag",
-    name: "鬼ごっこ",
-    description: "鬼の QR をスキャンしたら自分が鬼になる。最後まで鬼でなかった人が勝ち。",
-    rule: {
-      value: { kind: "status", defaultStatus: "safe" },
-      initial: { holders: "one", status: "oni" },
-      onScan: {
-        source: "set-status",
-        sink: "set-status",
-        sourceStatus: "safe",
-        sinkStatus: "oni",
-      },
-      constraints: { requireSourceHas: "oni" },
-    },
-  },
-  {
-    id: "infection",
-    name: "感染",
-    description: "感染者からスキャンされた人も感染。全員感染で終了。",
-    rule: {
-      value: { kind: "status", defaultStatus: "healthy" },
-      initial: { holders: "one", status: "infected" },
-      onScan: { source: "keep", sink: "set-status", sinkStatus: "infected" },
-      constraints: { requireSourceHas: "infected" },
-      end: { kind: "all-have-status", status: "infected" },
-    },
-  },
-  {
-    id: "oni-swap",
-    name: "鬼交代",
-    description: "スキャンすると鬼が入れ替わる。",
-    rule: {
-      value: { kind: "status", defaultStatus: "safe" },
-      initial: { holders: "one", status: "oni" },
-      onScan: { source: "keep", sink: "keep", swap: true },
-      constraints: { requireSourceHas: "oni" },
     },
   },
 ];
