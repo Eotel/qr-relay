@@ -12,21 +12,37 @@ export default defineConfig({
       manifest: {
         name: "QR Relay",
         short_name: "QR Relay",
-        description: "QR Relay",
+        description: "スマホをかざし合って遊ぶ運動会ツール。",
+        lang: "ja",
         theme_color: "#faf6f1",
         background_color: "#faf6f1",
         display: "standalone",
+        scope: "/",
         start_url: "/",
         icons: [
           {
             src: "/icon-192.png",
             sizes: "192x192",
             type: "image/png",
+            purpose: "any",
+          },
+          {
+            src: "/icon-192.png",
+            sizes: "192x192",
+            type: "image/png",
+            purpose: "maskable",
           },
           {
             src: "/icon-512.png",
             sizes: "512x512",
             type: "image/png",
+            purpose: "any",
+          },
+          {
+            src: "/icon-512.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "maskable",
           },
         ],
       },

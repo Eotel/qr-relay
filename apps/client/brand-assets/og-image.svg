@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="QR Relay OG card">
+  <title>QR Relay</title>
+  <rect width="1200" height="630" fill="#faf6f1"/>
+
+  <!-- card hairline frame (subtle sand-border, 1px effect) -->
+  <rect x="32" y="32" width="1136" height="566" rx="20" fill="none" stroke="#e7ddce" stroke-width="2"/>
+
+  <!-- top-left label: UDK FAMILY pill-ish -->
+  <text x="96" y="128"
+    font-family="Helvetica, Arial, sans-serif"
+    font-size="22" font-weight="800"
+    letter-spacing="3.1"
+    fill="#5b5651">UDK FAMILY · 3</text>
+
+  <!-- main display headline -->
+  <text x="96" y="270"
+    font-family="Helvetica, Arial, sans-serif"
+    font-size="148" font-weight="900"
+    letter-spacing="-2"
+    fill="#2c2926">QR Relay</text>
+
+  <!-- japanese descriptor -->
+  <text x="96" y="350"
+    font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, sans-serif"
+    font-size="36" font-weight="700"
+    fill="#2c2926">スマホをかざし合って遊ぶ。</text>
+
+  <!-- right-side relay composition: two QR finder tiles, deliberate overlap.
+       Tile A (back, terracotta) and Tile B (front, teal) overlap by ~70-80px
+       on both axes (~35-40% of each 200px tile). A 4px cream hairline around
+       tile B carves out the layering edge so the "front passes over back"
+       reads cleanly without resorting to drop shadow. -->
+  <!-- tile A (back, top-left) -->
+  <g transform="translate(780 130)">
+    <rect width="200" height="200" rx="36" fill="#c25640"/>
+    <rect x="34" y="34" width="132" height="132" rx="18" fill="#faf6f1"/>
+    <rect x="54" y="54" width="92" height="92" rx="9" fill="#c25640"/>
+    <rect x="72" y="72" width="56" height="56" rx="6" fill="#faf6f1"/>
+  </g>
+
+  <!-- tile B (front, bottom-right) -->
+  <g transform="translate(900 260)">
+    <!-- 4px cream hairline = negative-space cut against tile A -->
+    <rect x="-4" y="-4" width="208" height="208" rx="40" fill="#faf6f1"/>
+    <rect width="200" height="200" rx="36" fill="#2f6e68"/>
+    <rect x="34" y="34" width="132" height="132" rx="18" fill="#faf6f1"/>
+    <rect x="54" y="54" width="92" height="92" rx="9" fill="#2f6e68"/>
+    <rect x="72" y="72" width="56" height="56" rx="6" fill="#faf6f1"/>
+  </g>
+</svg>
