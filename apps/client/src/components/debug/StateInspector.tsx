@@ -10,9 +10,7 @@ type Props = {
 };
 
 export function StateInspector({ state, metrics, players, tokenHolderId }: Props) {
-  const holder = tokenHolderId
-    ? (players.find((p) => p.id === tokenHolderId) ?? null)
-    : null;
+  const holder = tokenHolderId ? (players.find((p) => p.id === tokenHolderId) ?? null) : null;
   return (
     <section className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-border bg-card p-3">
       <header className="flex items-center justify-between gap-2">

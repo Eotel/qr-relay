@@ -89,7 +89,8 @@ function ManualTab(p: ManualProps) {
   const candidates = p.bots;
   const scanner = scannerId || candidates[0]?.id || "";
   const targets = candidates.filter((b) => b.id !== scanner);
-  const target = targetId && targets.some((t) => t.id === targetId) ? targetId : targets[0]?.id ?? "";
+  const target =
+    targetId && targets.some((t) => t.id === targetId) ? targetId : (targets[0]?.id ?? "");
   return (
     <div className="flex flex-col gap-2">
       <div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr,1fr,auto]">
@@ -126,7 +127,10 @@ function ManualTab(p: ManualProps) {
           全ペア順に発火
         </Button>
         <div className="flex items-center gap-1.5">
-          <label className="text-[11px] uppercase tracking-wider text-muted-foreground" htmlFor="random-interval">
+          <label
+            className="text-[11px] uppercase tracking-wider text-muted-foreground"
+            htmlFor="random-interval"
+          >
             interval(ms)
           </label>
           <input
@@ -307,12 +311,10 @@ function ScenariosTab(p: ScenariosProps) {
         />
         <ScenarioCard
           title="random storm"
-          description={`rate × duration ÷ 1000 個のランダム scan を burst 送信。`}
+          description="rate × duration ÷ 1000 個のランダム scan を burst 送信。"
           action={
             <div className="flex items-center gap-1.5">
-              <label className="text-[11px] uppercase tracking-wider text-muted-foreground">
-                Hz
-              </label>
+              <span className="text-[11px] uppercase tracking-wider text-muted-foreground">Hz</span>
               <input
                 type="number"
                 min={1}
@@ -322,9 +324,7 @@ function ScenariosTab(p: ScenariosProps) {
                 }
                 className="h-7 w-16 rounded-sm border border-border bg-background px-1 text-right text-[12px]"
               />
-              <label className="text-[11px] uppercase tracking-wider text-muted-foreground">
-                ms
-              </label>
+              <span className="text-[11px] uppercase tracking-wider text-muted-foreground">ms</span>
               <input
                 type="number"
                 min={100}
@@ -355,9 +355,9 @@ function ScenariosTab(p: ScenariosProps) {
           description="token holder → ランダム target を N step。"
           action={
             <div className="flex items-center gap-1.5">
-              <label className="text-[11px] uppercase tracking-wider text-muted-foreground">
+              <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
                 steps
-              </label>
+              </span>
               <input
                 type="number"
                 min={1}
@@ -389,7 +389,8 @@ function EdgeTab(p: EdgeProps) {
   const [targetId, setTargetId] = useState<string>("");
   const scanner = scannerId || p.bots[0]?.id || "";
   const targets = p.bots.filter((b) => b.id !== scanner);
-  const target = targetId && targets.some((t) => t.id === targetId) ? targetId : targets[0]?.id ?? "";
+  const target =
+    targetId && targets.some((t) => t.id === targetId) ? targetId : (targets[0]?.id ?? "");
   return (
     <div className="flex flex-col gap-2">
       <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
@@ -398,7 +399,9 @@ function EdgeTab(p: EdgeProps) {
       </div>
       <ul className="m-0 grid list-none grid-cols-1 gap-1.5 p-0 md:grid-cols-2">
         {EDGE_CASES.map((c) => {
-          const disabled = !scanner || (c.id !== "self-scan" && !target) ||
+          const disabled =
+            !scanner ||
+            (c.id !== "self-scan" && !target) ||
             (c.id === "replay-nonce" && !p.hasSuccessNonce);
           return (
             <li

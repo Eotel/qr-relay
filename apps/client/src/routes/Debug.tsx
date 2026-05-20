@@ -91,7 +91,13 @@ export function Debug() {
             className="h-11 flex-1 rounded-[var(--radius-md)] border-2 border-border bg-card px-3 font-mono text-base tracking-[0.18em] uppercase focus:outline-none focus:ring-2 focus:ring-ring"
             maxLength={12}
           />
-          <Button type="submit" variant="primary" size="submit" className="w-auto" disabled={!joinCode.trim()}>
+          <Button
+            type="submit"
+            variant="primary"
+            size="submit"
+            className="w-auto"
+            disabled={!joinCode.trim()}
+          >
             接続
           </Button>
         </form>
@@ -107,9 +113,7 @@ export function Debug() {
           </p>
         )}
         {loadState === "ready" && presets.length === 0 && (
-          <p className="m-0 text-sm text-foreground/85">
-            利用できるプリセットがありません。
-          </p>
+          <p className="m-0 text-sm text-foreground/85">利用できるプリセットがありません。</p>
         )}
         {loadState === "ready" && presets.length > 0 && (
           <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-2.5">
@@ -131,9 +135,7 @@ export function Debug() {
                   )}
                 >
                   <span className="text-base font-extrabold leading-tight">{p.name}</span>
-                  <span className="text-xs leading-snug text-foreground/80">
-                    {p.description}
-                  </span>
+                  <span className="text-xs leading-snug text-foreground/80">{p.description}</span>
                 </button>
               );
             })}
@@ -154,9 +156,7 @@ export function Debug() {
       </Card>
 
       <Card className="flex flex-col gap-2 text-xs text-foreground/80">
-        <p className="m-0 font-bold uppercase tracking-[0.12em] text-muted-foreground">
-          tips
-        </p>
+        <p className="m-0 font-bold uppercase tracking-[0.12em] text-muted-foreground">tips</p>
         <ul className="m-0 list-disc space-y-1 pl-5">
           <li>
             短命な inactivity 動作を確認したいときは server を{" "}
@@ -166,7 +166,9 @@ export function Debug() {
           <li>
             bot は常に <code className="font-mono">bot-</code> prefix で識別される。
           </li>
-          <li>本番 build からは <code className="font-mono">/debug</code> 系ルートが除外される。</li>
+          <li>
+            本番 build からは <code className="font-mono">/debug</code> 系ルートが除外される。
+          </li>
         </ul>
       </Card>
     </main>

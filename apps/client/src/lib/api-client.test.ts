@@ -190,7 +190,9 @@ describe("createApiClient", () => {
   });
 
   it("updateRoomConfig: POST /api/rooms/:code/config に playerId と patch を送る", async () => {
-    const fetchImpl = vi.fn().mockResolvedValueOnce(jsonResponse({ ok: true, room: { code: "ABC" } }));
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ ok: true, room: { code: "ABC" } }));
     const client = createApiClient(fetchImpl);
     await client.updateRoomConfig("ABC", "h1", { initial: { holders: ["p2"] } });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
@@ -214,9 +216,7 @@ describe("createApiClient", () => {
   });
 
   it("updateRoomConfig: 403 で例外 (非 host)", async () => {
-    const fetchImpl = vi
-      .fn()
-      .mockResolvedValueOnce(new Response("forbidden", { status: 403 }));
+    const fetchImpl = vi.fn().mockResolvedValueOnce(new Response("forbidden", { status: 403 }));
     const client = createApiClient(fetchImpl);
     await expect(client.updateRoomConfig("ABC", "p1", {})).rejects.toThrow(/403/);
   });
@@ -232,7 +232,9 @@ describe("createApiClient", () => {
   it("updateRoomConfig: 400 issues を含む例外", async () => {
     const fetchImpl = vi
       .fn()
-      .mockResolvedValueOnce(jsonResponse({ error: "invalid", issues: [{ path: ["x"] }] }, { status: 400 }));
+      .mockResolvedValueOnce(
+        jsonResponse({ error: "invalid", issues: [{ path: ["x"] }] }, { status: 400 }),
+      );
     const client = createApiClient(fetchImpl);
     await expect(client.updateRoomConfig("ABC", "h1", {})).rejects.toThrow(/invalid/);
   });

@@ -108,7 +108,7 @@ describe("createBotPool", () => {
   it("clear: disconnects everything", async () => {
     const { pool, sockets } = setup();
     await pool.addBots(2);
-    sockets.forEach((s) => s.emitOpen());
+    for (const s of sockets) s.emitOpen();
     pool.clear();
     expect(sockets.every((s) => s.closed)).toBe(true);
     expect(pool.list()).toHaveLength(0);
@@ -117,7 +117,7 @@ describe("createBotPool", () => {
   it("disconnectAll / reconnectAll: closes then reopens fresh sockets without re-joining", async () => {
     const { pool, sockets, fetchImpl } = setup();
     await pool.addBots(2);
-    sockets.forEach((s) => s.emitOpen());
+    for (const s of sockets) s.emitOpen();
     pool.disconnectAll();
     expect(sockets.every((s) => s.closed)).toBe(true);
     (fetchImpl as unknown as ReturnType<typeof vi.fn>).mockClear();

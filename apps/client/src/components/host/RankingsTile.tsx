@@ -91,7 +91,6 @@ function Header({
         RANKINGS
       </span>
       <div
-        role="group"
         aria-label="集計方法"
         className="inline-flex rounded-md border border-white/10 bg-white/[0.04] p-0.5 text-[11px] font-bold tracking-wide"
       >
@@ -122,9 +121,7 @@ function MetricChip({
       onClick={onClick}
       className={cn(
         "inline-flex h-6 items-center rounded-sm px-2.5",
-        active
-          ? "bg-primary text-primary-foreground"
-          : "text-muted-foreground hover:bg-white/5",
+        active ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-white/5",
       )}
     >
       {children}

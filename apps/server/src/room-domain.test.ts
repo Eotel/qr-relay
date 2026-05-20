@@ -141,11 +141,7 @@ describe("reduceJoin", () => {
       NOW - 100,
     );
     if (init.kind !== "ok") throw new Error();
-    let stored = reduceJoin(
-      init.stored,
-      { playerId: "p1", name: "A", role: "client" },
-      NOW - 50,
-    );
+    let stored = reduceJoin(init.stored, { playerId: "p1", name: "A", role: "client" }, NOW - 50);
     const started = reduceStart(stored, NOW - 10);
     if (started.kind !== "ok") throw new Error("expected start ok");
     stored = started.stored;
@@ -174,11 +170,7 @@ describe("reduceJoin", () => {
       NOW - 100,
     );
     if (init.kind !== "ok") throw new Error();
-    let stored = reduceJoin(
-      init.stored,
-      { playerId: "p1", name: "A", role: "client" },
-      NOW - 50,
-    );
+    let stored = reduceJoin(init.stored, { playerId: "p1", name: "A", role: "client" }, NOW - 50);
     const started = reduceStart(stored, NOW - 10);
     if (started.kind !== "ok") throw new Error();
     stored = started.stored;
@@ -215,11 +207,7 @@ describe("reduceLeave", () => {
       NOW - 10,
     );
     if (init.kind !== "ok") throw new Error();
-    const hosted = reduceJoin(
-      init.stored,
-      { playerId: "host1", name: "H", role: "host" },
-      NOW - 5,
-    );
+    const hosted = reduceJoin(init.stored, { playerId: "host1", name: "H", role: "host" }, NOW - 5);
     expect(hosted.meta.hostId).toBe("host1");
     const left = reduceLeave(hosted, { playerId: "host1" }, NOW);
     expect(left.meta.hostId).toBeNull();
@@ -528,11 +516,7 @@ describe("reduceScan self-heal (legacy / mid-game join)", () => {
       NOW - 100,
     );
     if (init.kind !== "ok") throw new Error("init failed");
-    let stored = reduceJoin(
-      init.stored,
-      { playerId: "p1", name: "A", role: "client" },
-      NOW - 50,
-    );
+    let stored = reduceJoin(init.stored, { playerId: "p1", name: "A", role: "client" }, NOW - 50);
     const started = reduceStart(stored, NOW - 10);
     if (started.kind !== "ok") throw new Error("start failed");
     stored = started.stored;
@@ -949,11 +933,7 @@ describe("end-to-end: mid-game join + scan (regression for 'still 未参加 afte
       { playerId: "observer", name: "obs", role: "client" },
       NOW - 150,
     );
-    stored = reduceJoin(
-      stored,
-      { playerId: "bot-a", name: "Bot A", role: "client" },
-      NOW - 140,
-    );
+    stored = reduceJoin(stored, { playerId: "bot-a", name: "Bot A", role: "client" }, NOW - 140);
     const started = reduceStart(stored, NOW - 100);
     if (started.kind !== "ok") throw new Error();
     stored = started.stored;
@@ -987,20 +967,13 @@ describe("end-to-end: mid-game join + scan (regression for 'still 未参加 afte
       NOW - 200,
     );
     if (init.kind !== "ok") throw new Error();
-    let stored = reduceJoin(
-      init.stored,
-      { playerId: "p1", name: "A", role: "client" },
-      NOW - 150,
-    );
+    let stored = reduceJoin(init.stored, { playerId: "p1", name: "A", role: "client" }, NOW - 150);
     const started = reduceStart(stored, NOW - 100);
     if (started.kind !== "ok") throw new Error();
     stored = {
       ...started.stored,
       // Append a legacy entry directly without going through reduceJoin.
-      players: [
-        ...started.stored.players,
-        { id: "p-legacy", name: "Legacy", joinedAt: NOW - 90 },
-      ],
+      players: [...started.stored.players, { id: "p-legacy", name: "Legacy", joinedAt: NOW - 90 }],
     };
 
     const r = reduceScan({

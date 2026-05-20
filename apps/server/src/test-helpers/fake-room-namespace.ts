@@ -39,7 +39,10 @@ export type FakeRoomNamespace = {
 const NOOP_HANDLER: FakeFetchHandler = () =>
   new Response("fake-room: no handler configured", { status: 500 });
 
-function captureBody(input: Request | URL | string, init?: RequestInit): {
+function captureBody(
+  input: Request | URL | string,
+  init?: RequestInit,
+): {
   url: string;
   method: string;
   headers: Record<string, string>;

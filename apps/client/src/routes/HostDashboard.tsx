@@ -101,39 +101,39 @@ export function HostDashboard({ code, playerId }: Props) {
         style={layoutStyles[layoutKey]}
       >
         <Cell area="switcher" visible>
-        <ViewSwitcher mode={mode} onChange={setMode} />
-      </Cell>
-      <Cell area="hero" visible={mode === "overview"}>
-        <HeroTile view={view} roomCode={code} />
-      </Cell>
-      <Cell area="ticker" visible={mode === "overview"}>
-        <LastScanTicker event={lastScanEvent} players={players} />
-      </Cell>
-      <Cell area="qr" visible={mode === "overview"}>
-        <JoinQrTile code={code} variant={overviewKind === "waiting" ? "featured" : "compact"} />
-      </Cell>
-      <Cell area="rankings" visible={mode === "rankings"}>
-        <RankingsTile
-          rankings={rankingsData}
-          encountersOut={encountersOut}
-          encountersIn={encountersIn}
-        />
-      </Cell>
-      <Cell area="path" visible={mode === "token-path"}>
-        <TokenPathTile chain={chain} />
-      </Cell>
-      <Cell area="infection" visible={mode === "infection"}>
-        <InfectionGridTile players={players} state={state} />
-      </Cell>
-      <Cell area="participants" visible={mode === "participants"}>
-        <ParticipantListTile players={players} />
-      </Cell>
-      <Cell area="scans" visible={mode === "overview" && overviewKind === "play"}>
-        <ScanCountTile totalScans={totalScans} />
-      </Cell>
-      <Cell area="clock" visible>
-        <StopwatchTileLive phase={phase} />
-      </Cell>
+          <ViewSwitcher mode={mode} onChange={setMode} />
+        </Cell>
+        <Cell area="hero" visible={mode === "overview"}>
+          <HeroTile view={view} roomCode={code} />
+        </Cell>
+        <Cell area="ticker" visible={mode === "overview"}>
+          <LastScanTicker event={lastScanEvent} players={players} />
+        </Cell>
+        <Cell area="qr" visible={mode === "overview"}>
+          <JoinQrTile code={code} variant={overviewKind === "waiting" ? "featured" : "compact"} />
+        </Cell>
+        <Cell area="rankings" visible={mode === "rankings"}>
+          <RankingsTile
+            rankings={rankingsData}
+            encountersOut={encountersOut}
+            encountersIn={encountersIn}
+          />
+        </Cell>
+        <Cell area="path" visible={mode === "token-path"}>
+          <TokenPathTile chain={chain} />
+        </Cell>
+        <Cell area="infection" visible={mode === "infection"}>
+          <InfectionGridTile players={players} state={state} />
+        </Cell>
+        <Cell area="participants" visible={mode === "participants"}>
+          <ParticipantListTile players={players} />
+        </Cell>
+        <Cell area="scans" visible={mode === "overview" && overviewKind === "play"}>
+          <ScanCountTile totalScans={totalScans} />
+        </Cell>
+        <Cell area="clock" visible>
+          <StopwatchTileLive phase={phase} />
+        </Cell>
       </section>
     </div>
   );

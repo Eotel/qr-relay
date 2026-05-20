@@ -1,5 +1,5 @@
 import { Button } from "@qr-relay/ui/button";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { BotEntry } from "../../lib/debug/bot-pool.js";
 
 export type RemoteBotEntry = {
@@ -58,10 +58,22 @@ export function BotRoster({
           ) : null}
         </h3>
         <div className="flex flex-wrap items-center gap-1.5">
-          <Button type="button" variant="primary" size="pill" disabled={busy} onClick={() => onAdd(1)}>
+          <Button
+            type="button"
+            variant="primary"
+            size="pill"
+            disabled={busy}
+            onClick={() => onAdd(1)}
+          >
             +1
           </Button>
-          <Button type="button" variant="primary" size="pill" disabled={busy} onClick={() => onAdd(3)}>
+          <Button
+            type="button"
+            variant="primary"
+            size="pill"
+            disabled={busy}
+            onClick={() => onAdd(3)}
+          >
             +3
           </Button>
           <Button
@@ -175,6 +187,10 @@ function BotRow({
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(bot.name);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    if (editing) inputRef.current?.focus();
+  }, [editing]);
   const commit = () => {
     setEditing(false);
     if (draft && draft !== bot.name) onRename(bot.id, draft);
@@ -188,6 +204,7 @@ function BotRow({
       <td className="px-2 py-1">
         {editing ? (
           <input
+            ref={inputRef}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onBlur={commit}
@@ -198,7 +215,6 @@ function BotRow({
                 setEditing(false);
               }
             }}
-            autoFocus
             className="h-7 rounded-sm border border-border bg-background px-1 text-[12px]"
           />
         ) : (

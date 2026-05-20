@@ -1,7 +1,7 @@
 import type { GameEvent, Metric, Phase, Player, ScanHandler } from "@qr-relay/core";
 import { type ScanPayloadV1, requireHandler } from "@qr-relay/core";
 import "@qr-relay/handlers";
-import { mergeScanRule, type ScanRule } from "@qr-relay/handlers";
+import { type ScanRule, mergeScanRule } from "@qr-relay/handlers";
 
 export const NONCE_TTL_MS = 5 * 60_000;
 export const TS_WINDOW_MS = 60_000;
@@ -326,7 +326,9 @@ export function reduceUpdateConfig(
     return {
       kind: "error",
       status: 409,
-      body: { error: `config can only be updated in ready phase (current: ${stored.meta.phase.kind})` },
+      body: {
+        error: `config can only be updated in ready phase (current: ${stored.meta.phase.kind})`,
+      },
     };
   }
   if (stored.meta.hostId === null) {
@@ -347,7 +349,9 @@ export function reduceUpdateConfig(
     return {
       kind: "error",
       status: 400,
-      body: { error: `config patch is only supported for relay handler (got: ${stored.meta.handlerId})` },
+      body: {
+        error: `config patch is only supported for relay handler (got: ${stored.meta.handlerId})`,
+      },
     };
   }
   const current = stored.meta.handlerConfig as ScanRule;

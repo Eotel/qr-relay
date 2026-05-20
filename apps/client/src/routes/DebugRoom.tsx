@@ -10,15 +10,8 @@ import { StateInspector } from "../components/debug/StateInspector.js";
 import type { AutonomyConfig, AutonomyMode, EventLogItem } from "../components/debug/types.js";
 import { ReadyConfigEditor } from "../components/host/ReadyConfigEditor.js";
 import type { RoomInfo } from "../lib/api-client.js";
-import {
-  getRoom,
-  leaveRoom,
-  pauseRoom,
-  resetRoom,
-  resumeRoom,
-  startRoom,
-} from "../lib/api.js";
 import { defaultApiClient } from "../lib/api-client.js";
+import { getRoom, leaveRoom, pauseRoom, resetRoom, resumeRoom, startRoom } from "../lib/api.js";
 import { type BotEntry, type BotPool, createBotPool } from "../lib/debug/bot-pool.js";
 import { type EdgeCaseId, buildEdgeCasePayload } from "../lib/debug/edge-cases.js";
 import {
@@ -98,12 +91,7 @@ function summarizeRecv(t: string, data: unknown): string {
   return t;
 }
 
-function buildPayload(
-  code: string,
-  pid: string,
-  ts: number,
-  nonce: string,
-): ScanPayloadV1 {
+function buildPayload(code: string, pid: string, ts: number, nonce: string): ScanPayloadV1 {
   return { v: 1, rid: code, pid, ts, nonce };
 }
 
@@ -350,24 +338,19 @@ export function DebugRoom() {
     [refreshBots],
   );
 
-  const sendScan = useCallback((scannerId: string, targetId: string) => {
-    const pool = poolRef.current;
-    if (!pool) return;
-    const payload = buildPayload(
-      code,
-      targetId,
-      Date.now(),
-      `${systemRng.nonce()}`,
-    );
-    pool.sendScan(scannerId, payload);
-  }, [code]);
-
-  const sendPayload = useCallback(
-    (scannerId: string, payload: ScanPayloadV1) => {
-      poolRef.current?.sendScan(scannerId, payload);
+  const sendScan = useCallback(
+    (scannerId: string, targetId: string) => {
+      const pool = poolRef.current;
+      if (!pool) return;
+      const payload = buildPayload(code, targetId, Date.now(), `${systemRng.nonce()}`);
+      pool.sendScan(scannerId, payload);
     },
-    [],
+    [code],
   );
+
+  const sendPayload = useCallback((scannerId: string, payload: ScanPayloadV1) => {
+    poolRef.current?.sendScan(scannerId, payload);
+  }, []);
 
   const sendRaw = useCallback((scannerId: string, text: string) => {
     poolRef.current?.sendRaw(scannerId, text);
@@ -407,31 +390,43 @@ export function DebugRoom() {
         randomLoopTimerRef.current = null;
       }
       if (next.running) {
-        randomLoopTimerRef.current = setInterval(() => {
-          onRandomOnce();
-        }, Math.max(100, next.intervalMs));
+        randomLoopTimerRef.current = setInterval(
+          () => {
+            onRandomOnce();
+          },
+          Math.max(100, next.intervalMs),
+        );
       }
       return next;
     });
   }, [onRandomOnce]);
 
-  const onChangeRandomInterval = useCallback((ms: number) => {
-    setRandomLoop((prev) => {
-      const next = { ...prev, intervalMs: ms };
-      if (next.running && randomLoopTimerRef.current) {
-        clearInterval(randomLoopTimerRef.current);
-        randomLoopTimerRef.current = setInterval(() => {
-          onRandomOnce();
-        }, Math.max(100, ms));
-      }
-      return next;
-    });
-  }, [onRandomOnce]);
+  const onChangeRandomInterval = useCallback(
+    (ms: number) => {
+      setRandomLoop((prev) => {
+        const next = { ...prev, intervalMs: ms };
+        if (next.running && randomLoopTimerRef.current) {
+          clearInterval(randomLoopTimerRef.current);
+          randomLoopTimerRef.current = setInterval(
+            () => {
+              onRandomOnce();
+            },
+            Math.max(100, ms),
+          );
+        }
+        return next;
+      });
+    },
+    [onRandomOnce],
+  );
 
-  useEffect(() => () => {
-    const t = randomLoopTimerRef.current;
-    if (t) clearInterval(t);
-  }, []);
+  useEffect(
+    () => () => {
+      const t = randomLoopTimerRef.current;
+      if (t) clearInterval(t);
+    },
+    [],
+  );
 
   const onRoundRobin = useCallback(() => {
     for (const pair of roundRobinChain(bots.map((b) => ({ id: b.id, name: b.name })))) {
@@ -511,9 +506,12 @@ export function DebugRoom() {
     for (const b of bots) {
       const cfg = autonomyConfigs.get(b.id);
       if (!cfg || cfg.mode.kind === "idle") continue;
-      const t = setInterval(() => {
-        tickBotRef.current(b);
-      }, Math.max(100, cfg.intervalMs));
+      const t = setInterval(
+        () => {
+          tickBotRef.current(b);
+        },
+        Math.max(100, cfg.intervalMs),
+      );
       timers.set(b.id, t);
     }
     return () => {

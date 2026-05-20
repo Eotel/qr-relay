@@ -49,7 +49,7 @@ export function acceptInviteRole(code: string): Role {
 // would be friction without payoff.
 export function getRecentHostCode(): string | null {
   const raw = localStorage.getItem(RECENT_HOST_KEY);
-  return raw && raw.trim() ? raw : null;
+  return raw?.trim() ? raw : null;
 }
 
 export function setRecentHostCode(code: string): void {

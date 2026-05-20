@@ -262,11 +262,7 @@ describe("POST /api/rooms/:code/{start,pause,resume,reset}", () => {
   for (const action of ["start", "pause", "resume", "reset"] as const) {
     it(`dispatches '${action}' to the DO and passes the response through`, async () => {
       const { fake, env } = setup(() => jsonResponse({ ok: true, action }));
-      const res = await app.request(
-        `/api/rooms/abc123/${action}`,
-        { method: "POST" },
-        env,
-      );
+      const res = await app.request(`/api/rooms/abc123/${action}`, { method: "POST" }, env);
       expect(res.status).toBe(200);
       await expect(res.json()).resolves.toEqual({ ok: true, action });
       expect(fake.calls).toHaveLength(1);
@@ -350,7 +346,10 @@ describe("POST /api/rooms/:code/config", () => {
 
   it("propagates 400 with issues when patch is invalid", async () => {
     const { env } = setup(() =>
-      jsonResponse({ error: "invalid config patch", issues: [{ path: ["initial", "amount"] }] }, 400),
+      jsonResponse(
+        { error: "invalid config patch", issues: [{ path: ["initial", "amount"] }] },
+        400,
+      ),
     );
     const res = await app.request(
       "/api/rooms/ABC123/config",
@@ -420,11 +419,7 @@ describe("GET /ws/:code", () => {
 
   it("400 when Upgrade is set but pid query is missing", async () => {
     const { fake, env } = setup();
-    const res = await app.request(
-      "/ws/ABC123",
-      { headers: { Upgrade: "websocket" } },
-      env,
-    );
+    const res = await app.request("/ws/ABC123", { headers: { Upgrade: "websocket" } }, env);
     expect(res.status).toBe(400);
     await expect(res.text()).resolves.toContain("pid required");
     expect(fake.calls).toHaveLength(0);

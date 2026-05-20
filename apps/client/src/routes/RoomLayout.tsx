@@ -3,14 +3,7 @@ import { Badge } from "@qr-relay/ui/badge";
 import { Button } from "@qr-relay/ui/button";
 import { Card } from "@qr-relay/ui/card";
 import { cn } from "@qr-relay/ui/cn";
-import {
-  Camera,
-  Home as HomeIcon,
-  Pause,
-  Play,
-  RefreshCw,
-  Trophy,
-} from "lucide-react";
+import { Camera, Home as HomeIcon, Pause, Play, RefreshCw, Trophy } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, NavLink, Outlet, useNavigate, useParams } from "react-router-dom";
 import { InactivityOverlay } from "../components/InactivityOverlay.js";

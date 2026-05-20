@@ -75,10 +75,13 @@ export function ReadyConfigEditor({
   // mid-edit (`focused === false`). Without this, a `defaultValue`-based
   // uncontrolled input would silently overwrite fresher server state on
   // blur with the value that was rendered at mount.
-  const currentAmount = room && room.handlerId === "relay" ? (() => {
-    const rule = parseRule(room.handlerConfig);
-    return rule ? defaultAmountFor(rule) : 0;
-  })() : 0;
+  const currentAmount =
+    room && room.handlerId === "relay"
+      ? (() => {
+          const rule = parseRule(room.handlerConfig);
+          return rule ? defaultAmountFor(rule) : 0;
+        })()
+      : 0;
   const [amountDraft, setAmountDraft] = useState<string>(String(currentAmount));
   const [amountFocused, setAmountFocused] = useState(false);
   const lastSyncedAmountRef = useRef<number>(currentAmount);

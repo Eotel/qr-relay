@@ -1,7 +1,7 @@
 import type { Player } from "@qr-relay/core";
 import { describe, expect, it } from "vitest";
 import { presetById } from "./presets.js";
-import { mergeScanRule, type RelayState, type ScanRule, type ValueSlot } from "./relay-rule.js";
+import { type RelayState, type ScanRule, type ValueSlot, mergeScanRule } from "./relay-rule.js";
 import { relayHandler } from "./relay.js";
 
 function makePlayers(n: number): Player[] {

@@ -24,9 +24,7 @@ export const RoomClosedLazy = lazy(() =>
 // /debug, DebugRoom, the bot pool, scenarios, or edge-case payloads.
 const debugRouteObjects: RouteObject[] = import.meta.env.DEV
   ? (() => {
-      const Debug = lazy(() =>
-        import("./routes/Debug.js").then((m) => ({ default: m.Debug })),
-      );
+      const Debug = lazy(() => import("./routes/Debug.js").then((m) => ({ default: m.Debug })));
       const DebugRoom = lazy(() =>
         import("./routes/DebugRoom.js").then((m) => ({ default: m.DebugRoom })),
       );
