@@ -9,6 +9,7 @@ export { RoomDurableObject } from "./room.js";
 
 type Env = {
   ROOM: DurableObjectNamespace;
+  ASSETS: Fetcher;
 };
 
 const app = new Hono<{ Bindings: Env }>();
@@ -167,5 +168,7 @@ app.get("/ws/:code", async (c) => {
     }),
   );
 });
+
+app.notFound((c) => c.env.ASSETS.fetch(c.req.raw));
 
 export default app;
