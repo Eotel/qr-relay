@@ -1,5 +1,5 @@
-import type QrScannerLib from "qr-scanner";
-import { useEffect, useRef, useState } from "react";
+import { useRef } from "react";
+import { useQrScanner } from "../hooks/useQrScanner.js";
 
 type Props = {
   onScan: (raw: string) => void;
@@ -8,79 +8,7 @@ type Props = {
 
 export function QrScannerView({ onScan, paused = false }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const scannerRef = useRef<QrScannerLib | null>(null);
-  const lastScanRef = useRef<{ raw: string; at: number } | null>(null);
-  const onScanRef = useRef(onScan);
-  const [error, setError] = useState<string | null>(null);
-  const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    onScanRef.current = onScan;
-  }, [onScan]);
-
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-    let cancelled = false;
-    let localScanner: QrScannerLib | null = null;
-
-    (async () => {
-      try {
-        const { default: QrScannerLib } = await import("qr-scanner");
-        if (cancelled) return;
-        const scanner = new QrScannerLib(
-          video,
-          (result) => {
-            const now = Date.now();
-            const raw = result.data;
-            const last = lastScanRef.current;
-            if (last && last.raw === raw && now - last.at < 1500) {
-              return;
-            }
-            lastScanRef.current = { raw, at: now };
-            onScanRef.current(raw);
-          },
-          {
-            highlightScanRegion: true,
-            highlightCodeOutline: true,
-            preferredCamera: "environment",
-            maxScansPerSecond: 4,
-          },
-        );
-        localScanner = scanner;
-        scannerRef.current = scanner;
-        await scanner.start();
-        if (cancelled) {
-          scanner.stop();
-          return;
-        }
-        setReady(true);
-      } catch (err) {
-        if (cancelled) return;
-        setError(
-          `カメラを起動できませんでした: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      if (localScanner) {
-        localScanner.stop();
-        localScanner.destroy();
-      }
-      scannerRef.current = null;
-      setReady(false);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!ready) return;
-    const scanner = scannerRef.current;
-    if (!scanner) return;
-    if (paused) scanner.pause();
-    else scanner.start().catch(() => {});
-  }, [paused, ready]);
+  const { error } = useQrScanner(videoRef, onScan, { paused });
 
   return (
     <>
