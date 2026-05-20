@@ -1,7 +1,7 @@
 import type { Player } from "@qr-relay/core";
 import { describe, expect, it } from "vitest";
 import { presetById } from "./presets.js";
-import type { RelayState, ScanRule, ValueSlot } from "./relay-rule.js";
+import { mergeScanRule, type RelayState, type ScanRule, type ValueSlot } from "./relay-rule.js";
 import { relayHandler } from "./relay.js";
 
 function makePlayers(n: number): Player[] {
@@ -250,6 +250,88 @@ describe("relay handler - onPlayerJoin (mid-game join)", () => {
       now: 999,
     });
     expect(s1).toBe(s0);
+  });
+});
+
+describe("mergeScanRule", () => {
+  const baton = getRule("baton");
+  const steal = getRule("steal");
+
+  it("returns current unchanged when patch is empty", () => {
+    const r = mergeScanRule(baton, {});
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.merged).toEqual(baton);
+  });
+
+  it("overrides initial.holders with an explicit array", () => {
+    const r = mergeScanRule(baton, { initial: { holders: ["p2"] } });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.merged.initial.holders).toEqual(["p2"]);
+      expect(r.merged.initial.amount).toBe(baton.initial.amount);
+    }
+  });
+
+  it("changes initial.amount without disturbing initial.holders", () => {
+    const r = mergeScanRule(steal, { initial: { amount: 5 } });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.merged.initial.amount).toBe(5);
+      expect(r.merged.initial.holders).toBe("all");
+    }
+  });
+
+  it("can revert initial.holders back to 'one' literal", () => {
+    const arrayHolders: ScanRule = {
+      ...baton,
+      initial: { ...baton.initial, holders: ["p2"] },
+    };
+    const r = mergeScanRule(arrayHolders, { initial: { holders: "one" } });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.merged.initial.holders).toBe("one");
+  });
+
+  it("rejects invalid patch with zod issues", () => {
+    const r = mergeScanRule(baton, { initial: { amount: "abc" } });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.issues.length).toBeGreaterThan(0);
+  });
+
+  it("preserves nested onScan / constraints when not specified", () => {
+    const r = mergeScanRule(baton, { initial: { holders: ["p2"] } });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.merged.onScan).toEqual(baton.onScan);
+      expect(r.merged.constraints).toEqual(baton.constraints);
+    }
+  });
+
+  it("does not mutate the current rule", () => {
+    const snapshot = JSON.parse(JSON.stringify(baton));
+    mergeScanRule(baton, { initial: { holders: ["p2"] } });
+    expect(baton).toEqual(snapshot);
+  });
+
+  it("rejects out-of-scope sections (value / onScan / constraints)", () => {
+    const cases: unknown[] = [
+      { value: { kind: "score", defaultAmount: 3 } },
+      { onScan: { source: "lose", sink: "gain" } },
+      { constraints: { uniquePerPair: true } },
+    ];
+    for (const patch of cases) {
+      const r = mergeScanRule(baton, patch);
+      expect(r.ok).toBe(false);
+    }
+  });
+
+  it("rejects unknown top-level keys", () => {
+    const r = mergeScanRule(baton, { foo: "bar" });
+    expect(r.ok).toBe(false);
+  });
+
+  it("rejects unknown keys inside initial", () => {
+    const r = mergeScanRule(baton, { initial: { holdersTypo: ["p2"] } });
+    expect(r.ok).toBe(false);
   });
 });
 

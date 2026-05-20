@@ -55,3 +55,7 @@ export function resumeRoom(code: string) {
 export function resetRoom(code: string) {
   return activeClient.resetRoom(code);
 }
+
+export function updateRoomConfig(code: string, playerId: string, patch: unknown) {
+  return activeClient.updateRoomConfig(code, playerId, patch);
+}

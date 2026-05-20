@@ -5,6 +5,7 @@ import { JoinQrTile } from "../components/host/JoinQrTile.js";
 import { LastScanTicker } from "../components/host/LastScanTicker.js";
 import { ParticipantListTile } from "../components/host/ParticipantListTile.js";
 import { RankingsTile } from "../components/host/RankingsTile.js";
+import { ReadyConfigEditor } from "../components/host/ReadyConfigEditor.js";
 import { ScanCountTile } from "../components/host/ScanCountTile.js";
 import { StopwatchTileLive } from "../components/host/StopwatchTile.js";
 import { TokenPathTile } from "../components/host/TokenPathTile.js";
@@ -27,7 +28,7 @@ const EMPTY_RANKINGS: Rankings = { scanOut: [], scanIn: [] };
 const EMPTY_ENCOUNTERS: Record<string, number> = {};
 const EMPTY_CHAIN: TokenPathStep[] = [];
 
-type Props = { code: string };
+type Props = { code: string; playerId: string };
 
 /**
  * Stage register dashboard with a top view switcher. Five modes share the
@@ -47,7 +48,7 @@ type Props = { code: string };
  * Host operator controls (start/pause/resume/reset) live in `RoomLayout`'s
  * header, so the dashboard's vertical budget goes entirely to content.
  */
-export function HostDashboard({ code }: Props) {
+export function HostDashboard({ code, playerId }: Props) {
   const players = useWs((s) => s.players);
   const phase = useWs((s) => s.phase);
   const state = useWs((s) => s.state);
@@ -91,13 +92,15 @@ export function HostDashboard({ code }: Props) {
   const { totalScans } = useMemo(() => summarizeMetricsForHost(metrics), [metrics]);
 
   return (
-    <section
-      data-mode={mode}
-      data-layout={layoutKey}
-      className="grid min-h-0 flex-1 gap-3"
-      style={layoutStyles[layoutKey]}
-    >
-      <Cell area="switcher" visible>
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
+      {phase.kind === "ready" && <ReadyConfigEditor code={code} playerId={playerId} />}
+      <section
+        data-mode={mode}
+        data-layout={layoutKey}
+        className="grid min-h-0 flex-1 gap-3"
+        style={layoutStyles[layoutKey]}
+      >
+        <Cell area="switcher" visible>
         <ViewSwitcher mode={mode} onChange={setMode} />
       </Cell>
       <Cell area="hero" visible={mode === "overview"}>
@@ -131,7 +134,8 @@ export function HostDashboard({ code }: Props) {
       <Cell area="clock" visible>
         <StopwatchTileLive phase={phase} />
       </Cell>
-    </section>
+      </section>
+    </div>
   );
 }
 

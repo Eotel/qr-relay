@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { JoinQrDisplay, joinUrlFor } from "../components/JoinQrDisplay.js";
 import { MetricsPanel } from "../components/MetricsPanel.js";
+import { ReadyConfigEditor } from "../components/host/ReadyConfigEditor.js";
 import { pauseRoom, resetRoom, resumeRoom, startRoom } from "../lib/api.js";
 import { displayMs } from "../lib/ws-store.js";
 import { useWs } from "../lib/ws.js";
@@ -45,10 +46,10 @@ function formatStopwatch(ms: number): string {
  * unit tests anchored to a single tree.
  */
 export function HostRoom() {
-  const { code } = useOutletContext<RoomOutletContext>();
+  const { code, playerId } = useOutletContext<RoomOutletContext>();
   const isDashboard = useDashboardViewport();
-  if (isDashboard) return <HostDashboard code={code} />;
-  return <HostRoomHandheld code={code} />;
+  if (isDashboard) return <HostDashboard code={code} playerId={playerId} />;
+  return <HostRoomHandheld code={code} playerId={playerId} />;
 }
 
 /** Matches Tailwind's `md` breakpoint (768px). */
@@ -65,7 +66,7 @@ function useDashboardViewport(): boolean {
   return matches;
 }
 
-function HostRoomHandheld({ code }: { code: string }) {
+function HostRoomHandheld({ code, playerId }: { code: string; playerId: string }) {
   const players = useWs((s) => s.players);
   const metrics = useWs((s) => s.metrics);
   const phase = useWs((s) => s.phase);
@@ -226,6 +227,8 @@ function HostRoomHandheld({ code }: { code: string }) {
           </ul>
         )}
       </Card>
+
+      <ReadyConfigEditor code={code} playerId={playerId} />
 
       <Card className="flex flex-col gap-3">
         <h2 className="m-0 text-sm font-extrabold uppercase tracking-[0.14em] text-muted-foreground">

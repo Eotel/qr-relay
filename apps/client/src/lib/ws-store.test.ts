@@ -296,6 +296,29 @@ describe("createWsStore", () => {
     expect(useWs.getState().lastScanEvent).toBeNull();
   });
 
+  it("room メッセージで store.room と phase が更新される", () => {
+    const { useWs, sockets } = setup();
+    useWs.getState().connect("ABC", "p1", "host");
+    sockets[0]?.emitOpen();
+    sockets[0]?.emitMessage({
+      t: "room",
+      room: {
+        code: "ABC",
+        handlerId: "relay",
+        handlerConfig: { initial: { holders: ["p2"] } },
+        createdAt: 100,
+        hostId: "p1",
+        phase: { kind: "ready" },
+      },
+    });
+    const s = useWs.getState();
+    expect(s.room?.code).toBe("ABC");
+    expect((s.room?.handlerConfig as { initial: { holders: unknown } }).initial.holders).toEqual([
+      "p2",
+    ]);
+    expect(s.phase).toEqual({ kind: "ready" });
+  });
+
   it("clearClosed で closed をリセットできる", () => {
     const { useWs, sockets } = setup();
     useWs.getState().connect("ABC", "p1", "client");

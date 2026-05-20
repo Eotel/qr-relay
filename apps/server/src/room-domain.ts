@@ -1,6 +1,7 @@
 import type { GameEvent, Metric, Phase, Player, ScanHandler } from "@qr-relay/core";
 import { type ScanPayloadV1, requireHandler } from "@qr-relay/core";
 import "@qr-relay/handlers";
+import { mergeScanRule, type ScanRule } from "@qr-relay/handlers";
 
 export const NONCE_TTL_MS = 5 * 60_000;
 export const TS_WINDOW_MS = 60_000;
@@ -301,6 +302,68 @@ export function reduceReset(stored: Stored, now: number): PhaseResult {
     now,
   });
   return { kind: "ok", stored: next, metrics };
+}
+
+export type UpdateConfigResult =
+  | { kind: "ok"; stored: Stored }
+  | { kind: "error"; status: number; body: { error: string; issues?: unknown } };
+
+/**
+ * ready phase 中に handlerConfig を部分更新する。relay handler 限定 (他 handler
+ * は patch スキーマが定義されていないので 400)。**host のみ許可** — caller の
+ * `playerId` が `stored.meta.hostId` と一致しないと 403。host が未参加の
+ * (= `hostId === null`) ルームは「主催が居ない」状態なので config も触れない。
+ * state は触らず meta のみ更新する — 実際の state は次の `reduceStart` で
+ * 新しい config から生成される。
+ */
+export function reduceUpdateConfig(
+  stored: Stored,
+  playerId: string | null,
+  patch: unknown,
+  now: number,
+): UpdateConfigResult {
+  if (stored.meta.phase.kind !== "ready") {
+    return {
+      kind: "error",
+      status: 409,
+      body: { error: `config can only be updated in ready phase (current: ${stored.meta.phase.kind})` },
+    };
+  }
+  if (stored.meta.hostId === null) {
+    return {
+      kind: "error",
+      status: 403,
+      body: { error: "room has no host yet" },
+    };
+  }
+  if (playerId !== stored.meta.hostId) {
+    return {
+      kind: "error",
+      status: 403,
+      body: { error: "only the host can update room config" },
+    };
+  }
+  if (stored.meta.handlerId !== "relay") {
+    return {
+      kind: "error",
+      status: 400,
+      body: { error: `config patch is only supported for relay handler (got: ${stored.meta.handlerId})` },
+    };
+  }
+  const current = stored.meta.handlerConfig as ScanRule;
+  const merge = mergeScanRule(current, patch);
+  if (!merge.ok) {
+    return {
+      kind: "error",
+      status: 400,
+      body: { error: "invalid config patch", issues: merge.issues },
+    };
+  }
+  const next: Stored = {
+    ...stored,
+    meta: { ...stored.meta, handlerConfig: merge.merged, lastActivityAt: now },
+  };
+  return { kind: "ok", stored: next };
 }
 
 export type GetStateResult = {

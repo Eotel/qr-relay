@@ -112,6 +112,33 @@ app.get("/api/rooms/:code", async (c) => {
   });
 });
 
+app.post("/api/rooms/:code/config", async (c) => {
+  const code = normalizeRoomCode(c.req.param("code"));
+  const body = (await c.req.json().catch(() => null)) as {
+    playerId?: unknown;
+    patch?: unknown;
+  } | null;
+  if (!body || typeof body !== "object") return c.json({ error: "bad request" }, 400);
+  const { playerId, patch } = body;
+  if (typeof playerId !== "string" || playerId.length === 0) {
+    return c.json({ error: "playerId required" }, 400);
+  }
+  if (patch === undefined || patch === null || typeof patch !== "object") {
+    return c.json({ error: "patch required" }, 400);
+  }
+  const id = c.env.ROOM.idFromName(`room:${code}`);
+  const stub = c.env.ROOM.get(id);
+  const res = await stub.fetch("https://ro/config", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ playerId, patch }),
+  });
+  return new Response(await res.text(), {
+    status: res.status,
+    headers: { "Content-Type": "application/json" },
+  });
+});
+
 for (const action of ["start", "pause", "resume", "reset"] as const) {
   app.post(`/api/rooms/:code/${action}`, async (c) => {
     const code = normalizeRoomCode(c.req.param("code"));

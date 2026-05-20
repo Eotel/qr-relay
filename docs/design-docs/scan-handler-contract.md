@@ -1,6 +1,6 @@
 # ScanHandler Contract
 
-Last reviewed: 2026-05-20 (onPlayerJoin / onPlayerLeave 追加)
+Last reviewed: 2026-05-20 (ready-phase config 部分更新 / ADR-0009 追加)
 
 新しい遊び方を追加するときに参照するハンドラー仕様。多くの場合は
 **プリセット追加 (data 変更のみ)** で完結する。relay で表現できない novel ロジックが必要な
@@ -90,6 +90,14 @@ interface ScanHandler<TConfig, TState, TData> {
 | `string[]` | 指定 ID のプレイヤーに配る |
 
 `amount` (score 用初期値) も指定可能。
+
+**ready 中の部分更新**: ホストはルーム作成後 `start` 前に
+`POST /api/rooms/:code/config` (relay 限定) で `initial.holders` /
+`initial.amount` などの部分上書きができる。サーバは `mergeScanRule`
+(`packages/handlers/src/relay-rule.ts`) で current config に patch をマージし、
+`ScanRule` schema で再 parse する。`ready` 以外の phase では 409 を返す。
+ホスト UI の対応は `ReadyConfigEditor` (`apps/client/src/components/host/`)。
+詳細は [ADR-0009](../adr/0009-ready-phase-config-editor.md)。
 
 ### onScan: スキャン発生時の変化
 

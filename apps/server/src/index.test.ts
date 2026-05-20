@@ -285,6 +285,130 @@ describe("POST /api/rooms/:code/{start,pause,resume,reset}", () => {
   });
 });
 
+describe("POST /api/rooms/:code/config", () => {
+  it("forwards playerId + patch to /config on the DO and returns the JSON envelope", async () => {
+    const { fake, env } = setup(() =>
+      jsonResponse({
+        ok: true,
+        room: {
+          code: "ABC123",
+          handlerId: "relay",
+          handlerConfig: { initial: { holders: ["p2"] } },
+        },
+      }),
+    );
+    const res = await app.request(
+      "/api/rooms/abc123/config",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playerId: "h1", patch: { initial: { holders: ["p2"] } } }),
+      },
+      env,
+    );
+    expect(res.status).toBe(200);
+    expect(fake.calls).toHaveLength(1);
+    const [call] = fake.calls;
+    expect(call?.url).toBe("https://ro/config");
+    expect(call?.method).toBe("POST");
+    expect(call?.name).toBe("room:ABC123");
+    const sent = JSON.parse(call?.bodyText ?? "{}");
+    expect(sent).toEqual({ playerId: "h1", patch: { initial: { holders: ["p2"] } } });
+  });
+
+  it("propagates 403 from the DO when caller is not the host", async () => {
+    const { env } = setup(() =>
+      jsonResponse({ error: "only the host can update room config" }, 403),
+    );
+    const res = await app.request(
+      "/api/rooms/ABC123/config",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playerId: "p1", patch: { initial: { holders: ["p2"] } } }),
+      },
+      env,
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it("propagates 409 from the DO when phase blocks the update", async () => {
+    const { env } = setup(() =>
+      jsonResponse({ error: "config can only be updated in ready phase" }, 409),
+    );
+    const res = await app.request(
+      "/api/rooms/ABC123/config",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playerId: "h1", patch: { initial: { holders: ["p2"] } } }),
+      },
+      env,
+    );
+    expect(res.status).toBe(409);
+  });
+
+  it("propagates 400 with issues when patch is invalid", async () => {
+    const { env } = setup(() =>
+      jsonResponse({ error: "invalid config patch", issues: [{ path: ["initial", "amount"] }] }, 400),
+    );
+    const res = await app.request(
+      "/api/rooms/ABC123/config",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playerId: "h1", patch: { initial: { amount: "abc" } } }),
+      },
+      env,
+    );
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string; issues: unknown };
+    expect(body.error).toBe("invalid config patch");
+    expect(body.issues).toBeDefined();
+  });
+
+  it("rejects body that is not valid JSON object with 400 before hitting DO", async () => {
+    const { fake, env } = setup();
+    const res = await app.request(
+      "/api/rooms/ABC123/config",
+      { method: "POST", body: "not-json", headers: { "Content-Type": "text/plain" } },
+      env,
+    );
+    expect(res.status).toBe(400);
+    expect(fake.calls).toHaveLength(0);
+  });
+
+  it("rejects body missing playerId with 400 before hitting DO", async () => {
+    const { fake, env } = setup();
+    const res = await app.request(
+      "/api/rooms/ABC123/config",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ patch: { initial: { holders: ["p2"] } } }),
+      },
+      env,
+    );
+    expect(res.status).toBe(400);
+    expect(fake.calls).toHaveLength(0);
+  });
+
+  it("rejects body missing patch with 400 before hitting DO", async () => {
+    const { fake, env } = setup();
+    const res = await app.request(
+      "/api/rooms/ABC123/config",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playerId: "h1" }),
+      },
+      env,
+    );
+    expect(res.status).toBe(400);
+    expect(fake.calls).toHaveLength(0);
+  });
+});
+
 describe("GET /ws/:code", () => {
   it("426 when the Upgrade header is missing", async () => {
     const { fake, env } = setup();

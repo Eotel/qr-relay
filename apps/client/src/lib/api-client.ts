@@ -34,6 +34,13 @@ export type ApiClient = {
   pauseRoom: (code: string) => Promise<void>;
   resumeRoom: (code: string) => Promise<void>;
   resetRoom: (code: string) => Promise<void>;
+  /**
+   * Apply a partial patch to the room's handlerConfig. Only the host (proven
+   * by `playerId === room.hostId` on the server) may call this; non-hosts
+   * receive 403. Only valid in the `ready` phase (409 otherwise). Currently
+   * only the `relay` handler supports this.
+   */
+  updateRoomConfig: (code: string, playerId: string, patch: unknown) => Promise<void>;
 };
 
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
@@ -117,6 +124,18 @@ export function createApiClient(fetchImpl: FetchLike): ApiClient {
         method: "POST",
       });
       if (!res.ok) throw new Error(`reset failed: ${res.status}`);
+    },
+
+    async updateRoomConfig(code, playerId, patch) {
+      const res = await fetchImpl(`/api/rooms/${encodeURIComponent(code)}/config`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playerId, patch }),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`updateRoomConfig failed (${res.status}): ${text}`);
+      }
     },
   };
 }

@@ -188,4 +188,52 @@ describe("createApiClient", () => {
     const client = createApiClient(fetchImpl);
     await expect(client.resetRoom("ABC")).rejects.toThrow(/500/);
   });
+
+  it("updateRoomConfig: POST /api/rooms/:code/config に playerId と patch を送る", async () => {
+    const fetchImpl = vi.fn().mockResolvedValueOnce(jsonResponse({ ok: true, room: { code: "ABC" } }));
+    const client = createApiClient(fetchImpl);
+    await client.updateRoomConfig("ABC", "h1", { initial: { holders: ["p2"] } });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    const call = fetchImpl.mock.calls[0];
+    if (!call) throw new Error("expected fetch call");
+    const [url, init] = call;
+    expect(url).toBe("/api/rooms/ABC/config");
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(init?.body as string)).toEqual({
+      playerId: "h1",
+      patch: { initial: { holders: ["p2"] } },
+    });
+    expect(init?.headers).toMatchObject({ "Content-Type": "application/json" });
+  });
+
+  it("updateRoomConfig: code を URL エンコードする", async () => {
+    const fetchImpl = vi.fn().mockResolvedValueOnce(jsonResponse({ ok: true }));
+    const client = createApiClient(fetchImpl);
+    await client.updateRoomConfig("A B", "h1", { initial: { amount: 5 } });
+    expect(fetchImpl.mock.calls[0]?.[0]).toBe("/api/rooms/A%20B/config");
+  });
+
+  it("updateRoomConfig: 403 で例外 (非 host)", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("forbidden", { status: 403 }));
+    const client = createApiClient(fetchImpl);
+    await expect(client.updateRoomConfig("ABC", "p1", {})).rejects.toThrow(/403/);
+  });
+
+  it("updateRoomConfig: 409 で body 文字列を含む例外", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("conflict: not ready", { status: 409 }));
+    const client = createApiClient(fetchImpl);
+    await expect(client.updateRoomConfig("ABC", "h1", {})).rejects.toThrow(/conflict/);
+  });
+
+  it("updateRoomConfig: 400 issues を含む例外", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ error: "invalid", issues: [{ path: ["x"] }] }, { status: 400 }));
+    const client = createApiClient(fetchImpl);
+    await expect(client.updateRoomConfig("ABC", "h1", {})).rejects.toThrow(/invalid/);
+  });
 });

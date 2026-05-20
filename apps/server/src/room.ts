@@ -23,6 +23,7 @@ import {
   reduceResume,
   reduceScan,
   reduceStart,
+  reduceUpdateConfig,
   touchActivity,
 } from "./room-domain.js";
 
@@ -90,6 +91,8 @@ export class RoomDurableObject implements DurableObject {
       return this.handlePhaseRest("resume");
     if (url.pathname === "/reset" && request.method === "POST")
       return this.handlePhaseRest("reset");
+    if (url.pathname === "/config" && request.method === "POST")
+      return this.handleConfigUpdate(request);
     return new Response("Not found", { status: 404 });
   }
 
@@ -259,6 +262,29 @@ export class RoomDurableObject implements DurableObject {
       state,
       metrics,
     });
+  }
+
+  private async handleConfigUpdate(request: Request): Promise<Response> {
+    const body = (await request.json().catch(() => null)) as {
+      playerId?: unknown;
+      patch?: unknown;
+    } | null;
+    if (!body || typeof body !== "object") {
+      return json({ error: "invalid config patch" }, 400);
+    }
+    const playerId = typeof body.playerId === "string" ? body.playerId : null;
+    const patch = body.patch;
+    if (patch === undefined || patch === null || typeof patch !== "object") {
+      return json({ error: "patch required" }, 400);
+    }
+    const stored = await this.loadStored();
+    if (!stored) return json({ error: "room not initialized" }, 404);
+    const r = reduceUpdateConfig(stored, playerId, patch, this.clock.now());
+    if (r.kind === "error") return json(r.body, r.status);
+    await this.saveStored(r.stored);
+    await this.onActivity(r.stored.meta.lastActivityAt);
+    this.broadcast({ t: "room", room: r.stored.meta });
+    return json({ ok: true, room: r.stored.meta });
   }
 
   private async handlePhaseRest(action: PhaseAction): Promise<Response> {

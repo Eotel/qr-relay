@@ -12,6 +12,7 @@ export type WsMessage =
       phase?: Phase;
     }
   | { t: "players"; players: PlayerLite[] }
+  | { t: "room"; room: RoomInfo }
   | { t: "event"; event: Record<string, unknown> }
   | { t: "error"; message: string }
   | { t: "pong" }
@@ -153,6 +154,8 @@ export function createWsStore(deps: WsStoreDeps): WsStore {
             }));
           } else if (data.t === "players") {
             set({ players: data.players });
+          } else if (data.t === "room") {
+            set({ room: data.room, phase: data.room.phase });
           } else if (data.t === "event") {
             const scan = parseScanEvent(data.event);
             if (scan) set({ lastScanEvent: scan });

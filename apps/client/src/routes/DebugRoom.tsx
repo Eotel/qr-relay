@@ -8,6 +8,8 @@ import { RoomControl } from "../components/debug/RoomControl.js";
 import { ScanControls } from "../components/debug/ScanControls.js";
 import { StateInspector } from "../components/debug/StateInspector.js";
 import type { AutonomyConfig, AutonomyMode, EventLogItem } from "../components/debug/types.js";
+import { ReadyConfigEditor } from "../components/host/ReadyConfigEditor.js";
+import type { RoomInfo } from "../lib/api-client.js";
 import {
   getRoom,
   leaveRoom,
@@ -117,6 +119,7 @@ export function DebugRoom() {
 
   const [connected, setConnected] = useState(false);
   const [phase, setPhase] = useState<Phase>({ kind: "ready" });
+  const [room, setRoom] = useState<RoomInfo | null>(null);
   const [state, setState] = useState<unknown>(null);
   const [metrics, setMetrics] = useState<ReturnType<typeof useWs.getState>["metrics"]>([]);
   const [players, setPlayers] = useState<{ id: string; name: string; joinedAt: number }[]>([]);
@@ -241,6 +244,7 @@ export function DebugRoom() {
       setState(s.state);
       setMetrics(s.metrics);
       setPhase(s.phase);
+      setRoom(s.room);
       setInactivityCloseAt(s.inactivity?.closeAt ?? null);
     });
 
@@ -706,18 +710,27 @@ export function DebugRoom() {
       )}
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(260px,320px)_minmax(360px,1fr)_minmax(360px,1fr)]">
-        <RoomControl
-          code={code}
-          phase={phase}
-          connected={connected}
-          inactivityCloseAt={inactivityCloseAt}
-          onStart={onStart}
-          onPause={onPause}
-          onResume={onResume}
-          onReset={onReset}
-          onDisconnectObserver={onObserverDisconnect}
-          onReconnectObserver={onObserverReconnect}
-        />
+        <div className="flex flex-col gap-3">
+          <RoomControl
+            code={code}
+            phase={phase}
+            connected={connected}
+            inactivityCloseAt={inactivityCloseAt}
+            onStart={onStart}
+            onPause={onPause}
+            onResume={onResume}
+            onReset={onReset}
+            onDisconnectObserver={onObserverDisconnect}
+            onReconnectObserver={onObserverReconnect}
+          />
+          <ReadyConfigEditor
+            code={code}
+            playerId={room?.hostId ?? null}
+            room={room}
+            phase={phase}
+            players={players}
+          />
+        </div>
         <BotRoster
           bots={bots}
           remoteBots={remoteBots}

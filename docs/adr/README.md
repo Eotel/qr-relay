@@ -1,6 +1,6 @@
 # Architecture Decision Records
 
-Last reviewed: 2026-05-20 (ADR-0008 追加)
+Last reviewed: 2026-05-20 (ADR-0009 追加)
 
 このディレクトリは「なぜ X を採用したか」「なぜ Y を捨てたか」を 1 件 1 ファイルで残す
 場所。長期的な設計原則は [../design-docs/core-beliefs.md](../design-docs/core-beliefs.md)、
@@ -22,6 +22,7 @@ Last reviewed: 2026-05-20 (ADR-0008 追加)
 | [0006](0006-host-multi-view-dashboard.md) | ホスト dashboard に ViewSwitcher を内蔵し host 側 `/scoreboard` tab を撤去 | accepted (§Decision 5 と §Decision 6 の OperatorStrip 部分は [0007](0007-host-operator-strip-to-header.md) に supersede) | 2026-05-20 |
 | [0007](0007-host-operator-strip-to-header.md) | OperatorStrip をヘッダへ統合し、dashboard tick を tile に閉じ込める | accepted | 2026-05-20 |
 | [0008](0008-handler-on-player-join.md) | Player ライフサイクル hook (`ScanHandler.onPlayerJoin` / `onPlayerLeave`) を追加 | accepted | 2026-05-20 |
+| [0009](0009-ready-phase-config-editor.md) | ready phase 中の handlerConfig 部分更新 (`POST /api/rooms/:code/config`, relay 限定) | accepted | 2026-05-20 |
 
 ## ADR と他のドキュメントの使い分け
 

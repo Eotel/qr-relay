@@ -15,6 +15,7 @@ import {
   reduceResume,
   reduceScan,
   reduceStart,
+  reduceUpdateConfig,
   touchActivity,
 } from "./room-domain.js";
 
@@ -355,6 +356,136 @@ describe("reduceReset", () => {
     expect(r.stored.meta.code).toBe(started.stored.meta.code);
     expect(r.stored.meta.hostId).toBe(started.stored.meta.hostId);
     expect(r.stored.meta.handlerId).toBe(started.stored.meta.handlerId);
+  });
+});
+
+describe("reduceUpdateConfig", () => {
+  const HOST_ID = "h1";
+
+  function readyStored(): Stored {
+    const init = reduceInit(
+      { code: "ABC123", handlerId: "relay", handlerConfig: TALLY_CONFIG },
+      NOW - 1000,
+    );
+    if (init.kind !== "ok") throw new Error("init failed");
+    let stored = init.stored;
+    stored = reduceJoin(stored, { playerId: HOST_ID, name: "Host", role: "host" }, NOW - 800);
+    stored = reduceJoin(stored, { playerId: "p1", name: "P1", role: "client" }, NOW - 600);
+    stored = reduceJoin(stored, { playerId: "p2", name: "P2", role: "client" }, NOW - 400);
+    return stored;
+  }
+
+  it("ready phase で host が initial.holders を配列で上書きできる", () => {
+    const stored = readyStored();
+    const r = reduceUpdateConfig(stored, HOST_ID, { initial: { holders: ["p2"] } }, NOW);
+    expect(r.kind).toBe("ok");
+    if (r.kind !== "ok") return;
+    const cfg = r.stored.meta.handlerConfig as { initial: { holders: unknown } };
+    expect(cfg.initial.holders).toEqual(["p2"]);
+    expect(r.stored.meta.lastActivityAt).toBe(NOW);
+  });
+
+  it("ready phase で initial.amount だけを変更できる", () => {
+    const stored = readyStored();
+    const r = reduceUpdateConfig(stored, HOST_ID, { initial: { amount: 5 } }, NOW);
+    expect(r.kind).toBe("ok");
+    if (r.kind !== "ok") return;
+    const cfg = r.stored.meta.handlerConfig as { initial: { amount: number; holders: unknown } };
+    expect(cfg.initial.amount).toBe(5);
+    expect(cfg.initial.holders).toBe("all");
+  });
+
+  it("非 host (client) からの呼び出しは 403", () => {
+    const stored = readyStored();
+    const r = reduceUpdateConfig(stored, "p1", { initial: { amount: 5 } }, NOW);
+    expect(r.kind).toBe("error");
+    if (r.kind !== "error") return;
+    expect(r.status).toBe(403);
+    expect(r.body.error).toMatch(/host/);
+  });
+
+  it("playerId 無し (null) は 403", () => {
+    const stored = readyStored();
+    const r = reduceUpdateConfig(stored, null, { initial: { amount: 5 } }, NOW);
+    expect(r.kind).toBe("error");
+    if (r.kind !== "error") return;
+    expect(r.status).toBe(403);
+  });
+
+  it("hostId が未設定 (誰も host で join していない) なら 403", () => {
+    const init = reduceInit(
+      { code: "ABC123", handlerId: "relay", handlerConfig: TALLY_CONFIG },
+      NOW - 1000,
+    );
+    if (init.kind !== "ok") throw new Error("init failed");
+    const r = reduceUpdateConfig(init.stored, "any", { initial: { amount: 5 } }, NOW);
+    expect(r.kind).toBe("error");
+    if (r.kind !== "error") return;
+    expect(r.status).toBe(403);
+  });
+
+  it("running 中は phase エラーで拒否する", () => {
+    const stored = readyStored();
+    const started = reduceStart(stored, NOW - 100);
+    if (started.kind !== "ok") throw new Error("start failed");
+    const r = reduceUpdateConfig(started.stored, HOST_ID, { initial: { amount: 5 } }, NOW);
+    expect(r.kind).toBe("error");
+    if (r.kind !== "error") return;
+    expect(r.status).toBe(409);
+    expect(r.body.error).toMatch(/ready/);
+  });
+
+  it("paused 中も拒否する", () => {
+    const stored = readyStored();
+    const started = reduceStart(stored, NOW - 200);
+    if (started.kind !== "ok") throw new Error("start");
+    const paused = reducePause(started.stored, NOW - 100);
+    if (paused.kind !== "ok") throw new Error("pause");
+    const r = reduceUpdateConfig(paused.stored, HOST_ID, { initial: { amount: 5 } }, NOW);
+    expect(r.kind).toBe("error");
+    if (r.kind !== "error") return;
+    expect(r.status).toBe(409);
+  });
+
+  it("無効な patch は issues 付き 400", () => {
+    const stored = readyStored();
+    const r = reduceUpdateConfig(stored, HOST_ID, { initial: { amount: "abc" } }, NOW);
+    expect(r.kind).toBe("error");
+    if (r.kind !== "error") return;
+    expect(r.status).toBe(400);
+    expect(r.body.issues).toBeDefined();
+  });
+
+  it("relay 以外の handler は 400", () => {
+    const stored = readyStored();
+    const tampered: Stored = {
+      ...stored,
+      meta: { ...stored.meta, handlerId: "ghost" },
+    };
+    const r = reduceUpdateConfig(tampered, HOST_ID, {}, NOW);
+    expect(r.kind).toBe("error");
+    if (r.kind !== "error") return;
+    expect(r.status).toBe(400);
+  });
+
+  it("reset 後 (ready に戻った) に再び更新できる", () => {
+    const stored = readyStored();
+    const started = reduceStart(stored, NOW - 200);
+    if (started.kind !== "ok") throw new Error("start");
+    const resetR = reduceReset(started.stored, NOW - 100);
+    if (resetR.kind !== "ok") throw new Error("reset");
+    const r = reduceUpdateConfig(resetR.stored, HOST_ID, { initial: { amount: 7 } }, NOW);
+    expect(r.kind).toBe("ok");
+    if (r.kind !== "ok") return;
+    const cfg = r.stored.meta.handlerConfig as { initial: { amount: number } };
+    expect(cfg.initial.amount).toBe(7);
+  });
+
+  it("元の stored を変更しない (immutability)", () => {
+    const stored = readyStored();
+    const snapshot = JSON.parse(JSON.stringify(stored.meta.handlerConfig));
+    reduceUpdateConfig(stored, HOST_ID, { initial: { holders: ["p2"] } }, NOW);
+    expect(stored.meta.handlerConfig).toEqual(snapshot);
   });
 });
 
