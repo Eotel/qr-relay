@@ -27,6 +27,10 @@ export function createRoom(handlerId: string, handlerConfig: unknown) {
   return activeClient.createRoom(handlerId, handlerConfig);
 }
 
+export function getRoom(code: string) {
+  return activeClient.getRoom(code);
+}
+
 export function joinRoom(code: string, playerId: string, name: string) {
   return activeClient.joinRoom(code, playerId, name);
 }

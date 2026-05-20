@@ -24,6 +24,7 @@ export type HandlersAndPresets = {
 export type ApiClient = {
   listHandlersAndPresets: () => Promise<HandlersAndPresets>;
   createRoom: (handlerId: string, handlerConfig: unknown) => Promise<string>;
+  getRoom: (code: string) => Promise<RoomSnapshot>;
   joinRoom: (code: string, playerId: string, name: string) => Promise<RoomSnapshot>;
   startRoom: (code: string) => Promise<void>;
 };
@@ -50,6 +51,12 @@ export function createApiClient(fetchImpl: FetchLike): ApiClient {
       }
       const body = (await res.json()) as { code: string };
       return body.code;
+    },
+
+    async getRoom(code) {
+      const res = await fetchImpl(`/api/rooms/${encodeURIComponent(code)}`);
+      if (!res.ok) throw new Error(`getRoom: ${res.status}`);
+      return (await res.json()) as RoomSnapshot;
     },
 
     async joinRoom(code, playerId, name) {

@@ -99,8 +99,7 @@ function pick<T>(arr: readonly T[]): T {
 function makeAnimalName(): string {
   const adj = pick(ADJECTIVES);
   const animal = pick(ANIMALS);
-  const suffix = randomInt(1000).toString().padStart(3, "0");
-  return `${adj}${animal}-${suffix}`;
+  return `${adj}${animal}`;
 }
 
 export function ensurePlayerName(): string {

@@ -59,6 +59,36 @@ describe("createApiClient", () => {
     await expect(client.createRoom("relay", {})).rejects.toThrow(/invalid config/);
   });
 
+  it("getRoom: GET /api/rooms/:code を叩いて snapshot を返す", async () => {
+    const fetchImpl = vi.fn().mockResolvedValueOnce(
+      jsonResponse({
+        room: { code: "ABC" },
+        players: [{ id: "p1", name: "n", joinedAt: 0 }],
+        state: null,
+        metrics: [],
+      }),
+    );
+    const client = createApiClient(fetchImpl);
+    const snap = await client.getRoom("ABC");
+    expect(fetchImpl).toHaveBeenCalledWith("/api/rooms/ABC");
+    expect(snap.players[0]?.name).toBe("n");
+  });
+
+  it("getRoom: 404 で例外", async () => {
+    const fetchImpl = vi.fn().mockResolvedValueOnce(new Response("nope", { status: 404 }));
+    const client = createApiClient(fetchImpl);
+    await expect(client.getRoom("ZZZZZZ")).rejects.toThrow(/404/);
+  });
+
+  it("getRoom: code を URL エンコードする", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ room: { code: "A B" }, players: [], state: null, metrics: [] }));
+    const client = createApiClient(fetchImpl);
+    await client.getRoom("A B");
+    expect(fetchImpl).toHaveBeenCalledWith("/api/rooms/A%20B");
+  });
+
   it("joinRoom: /join に POST してから /state を GET し、合算 snapshot を返す", async () => {
     const fetchImpl = vi
       .fn()

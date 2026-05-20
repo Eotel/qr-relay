@@ -82,8 +82,9 @@ describe("ensurePlayerName", () => {
   it("generates a random animal name in the documented shape", async () => {
     const { ensurePlayerName } = await loadIdentity();
     const name = ensurePlayerName();
-    // shape: <adjective><animal>-<3 digits>
-    expect(name).toMatch(/^.+-\d{3}$/);
+    // shape: <adjective><animal> — no numeric suffix
+    expect(name).toMatch(/^[^-\s]+$/);
+    expect(name.length).toBeGreaterThanOrEqual(2);
     // persists the generated name
     expect(storage.getItem("qr-relay:player-name")).toBe(name);
   });
