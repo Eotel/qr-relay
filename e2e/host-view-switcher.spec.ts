@@ -37,7 +37,8 @@ test("Host stage dashboard: ViewSwitcher で 5 mode を行き来できる", asyn
   await switcher.getByRole("tab", { name: /参加者/ }).click();
   await expect(page.getByRole("region", { name: "参加者一覧" })).toBeVisible();
 
-  // OperatorStrip は全 mode で操作可能 — リセット / スタートのいずれかが見えていること
+  // 操作 UI (RoomLayout ヘッダの HostHeaderOperator, ADR-0007) は mode に
+  // 依存せず常時可視 — リセット / スタートのいずれかが見えていること
   await expect(page.getByRole("button", { name: /^スタート$/ })).toBeVisible();
 });
 

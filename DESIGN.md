@@ -398,20 +398,23 @@ dashboard** が前提。
 
 - **2 register** の延長線上にあり、stage register (dark slate) を専有する。
   第三の register は作らない。
-- **6 タイルの固定セット**: Hero / PlayerBoard / LastScanTicker / Stopwatch /
-  JoinQR / OperatorStrip。タイル種は preset 不可知、内容と grid 比率だけが
-  preset で変わる。
+- **タイル構成は ViewSwitcher で切替**: `overview` モードは Hero /
+  LastScanTicker / Stopwatch / JoinQR / ScanCount の 5 tile。focus モード
+  (`rankings` / `token-path` / `infection` / `participants`) は対応する
+  1 tile が canvas を占有し、底に Stopwatch を残す。PlayerBoard は
+  廃止 ([ADR-0005](docs/adr/0005-drop-player-board-from-host-stage.md))。
 - **grid 切替 = preset 表現**: `pickHostHeroView` が返す view kind
-  (`waiting` / `token-single` / `token-many` / `score-leader`) ごとに
-  `grid-template-areas` を切り替える。同じタイルセットを **位置とサイズで意味付ける**
-  方針 (同じ場所に重ねて中身分岐、ではない)。
+  (`waiting` / `token-single` / `token-many` / `score-leader`) は overview
+  モード内の Hero タイル中身選択に残存し、focus モードは ViewSwitcher で
+  ホスト自身が選ぶ ([ADR-0006](docs/adr/0006-host-multi-view-dashboard.md))。
 - **タイポ最小サイズ**: 名前 ≥ 20–24px、値 ≥ 28–56px、Hero の主役グリフは
   `clamp(48px, 11vw, 160px)` 規模。`clamp()` で流体化するのは
   「ホスト画面の dashboard 内部だけ」で、handheld register には持ち込まない
   (`The Weight-Hierarchy Rule` に従い、本文 / カードは clamp しない)。
-- **PlayerBoard が主役**: chip の折返しは host dashboard では使わない。代わりに
-  `grid-cols-[repeat(auto-fill,minmax(200px,1fr))]` の roster grid を組み、
-  「自分の名前を 1 秒で見つける」を最優先にする。
+- **タイル境界で内容は逃げない**: 各 tile セクションは `overflow-hidden` を
+  必須にする。focus モードの細い行に詰め込まれた Stopwatch のような流体
+  サイズ要素は `clamp(28px, min(4vw, 10vh), 88px)` のように viewport の幅
+  と高さの **小さい方** で縮ませる。
 - **モーション**: 値変化時に `.hero-pulse` クラスで 240ms / `scale(1.05)` を
   1 回だけ。React の `key` 変化で再マウントしてキーフレームを再発火させる
   (`data-pulse-key` 属性では発火しない)。`prefers-reduced-motion` で全停止
@@ -419,15 +422,17 @@ dashboard** が前提。
   (80ms / `ease-out` / press feedback のみ) を破らない最小拡張で、
   「会場が "今" 起きたことに気付く」ためのキューに用途を限定する。
 - **100dvh 縛り**: `<main>` に `md:h-dvh md:overflow-hidden` を付け、
-  PlayerBoard / Hero / Ticker は **内部スクロールを持たない**。タイル境界で
+  Hero / Ticker / focus tile は **内部スクロールを持たない**。タイル境界で
   scroll を許すと dashboard が dashboard でなくなる。
 - **JoinQR の表示ポリシー**: `waiting` view では JoinQR が中央 8/12 cols を
   占有する hero に昇格する。プレイ中 (`token-*` / `score-leader`) は compact
   サイズに退き、サイドのクロックと並ぶ。プレイ中も完全に隠さないのは、後発
   joiner が会場の片隅から QR を読めるようにするため。
-- **OperatorStrip は周縁**: start / pause / reset とアクションエラーは
-  下端 1 行の薄帯にまとめる。stage register での主役は **ゲーム状態** であって
-  操作ボタンではない、という階層を視覚的に守る。
+- **操作 UI は header に格納**: start / pause / resume / reset の操作と
+  アクションエラーは `RoomLayout` ヘッダ右端の pill button + 下のアラート
+  Card に集約する ([ADR-0007](docs/adr/0007-host-operator-strip-to-header.md))。
+  stage register での主役は **ゲーム状態** であって操作ボタンではない、
+  という階層は維持しつつ、dashboard の垂直予算をタイルに譲る。
 
 ## 6. Do's and Don'ts
 

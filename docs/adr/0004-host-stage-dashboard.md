@@ -1,7 +1,8 @@
 # ADR-0004: Host screen is a player-facing stage dashboard, not an operator console
 
 **Date**: 2026-05-20
-**Status**: accepted
+**Status**: accepted (§Decision 4 は [ADR-0005](0005-drop-player-board-from-host-stage.md) で、§Decision 5 と §Decision 3 のタイル列挙の OperatorStrip 部分は [ADR-0007](0007-host-operator-strip-to-header.md) で superseded)
+**Superseded-in-part-by**: [ADR-0005](0005-drop-player-board-from-host-stage.md) (§Decision 4), [ADR-0007](0007-host-operator-strip-to-header.md) (§Decision 5)
 **Deciders**: miura
 
 ## Context

@@ -367,9 +367,10 @@ type HostHeaderOperatorProps = {
 
 /**
  * Compact operator controls rendered on the right edge of the dashboard
- * header (md+ host only). Mirrors the OperatorStrip's primary-action state
- * machine but uses pill-sized buttons so the header stays a single calm
- * row. Handheld hides this — it has its own thumb-reach footer.
+ * header (md+ host only). Pill-sized reset + primary buttons keep the
+ * header a single calm row; the primary action's label/icon switches on
+ * `phase.kind` (ready → スタート, running → 一時停止, paused → 再開).
+ * Handheld hides this — it has its own thumb-reach footer.
  */
 function HostHeaderOperator({
   phase,
