@@ -27,7 +27,7 @@ export function JoinQrTile({ code, variant }: Props) {
       aria-label="参加 QR"
       className={cn(
         "flex h-full min-h-0 flex-col items-center justify-center gap-2 overflow-hidden rounded-[var(--radius-lg)]",
-        "border border-white/10 bg-white/[0.04] p-3 text-center",
+        "border border-white/10 bg-white/[0.04] p-3 text-center [container-type:size]",
         variant === "featured" && "p-5",
       )}
     >
@@ -43,8 +43,8 @@ export function JoinQrTile({ code, variant }: Props) {
         className={cn(
           "relative flex aspect-square items-center justify-center overflow-hidden rounded-[var(--radius-md)] bg-white",
           variant === "featured"
-            ? "h-[min(72%,640px)] w-auto max-w-full"
-            : "h-[min(100%,160px)] w-auto max-w-full",
+            ? "h-[min(72cqh,95cqw,640px)] w-[min(72cqh,95cqw,640px)]"
+            : "h-[min(100cqh,100cqw,160px)] w-[min(100cqh,100cqw,160px)]",
         )}
       >
         <JoinQrDisplay code={code} />

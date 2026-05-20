@@ -47,7 +47,7 @@ export function HeroTile({ view, roomCode }: Props) {
           <Label icon={<Hand size={18} />}>NOW HOLDING</Label>
           <strong
             key={view.holder?.id ?? "none"}
-            className="hero-pulse w-full break-words text-[clamp(64px,13vw,260px)] font-black leading-[0.95]"
+            className="hero-pulse max-w-full whitespace-nowrap text-[clamp(40px,13vw,260px)] font-black leading-[0.95]"
           >
             {view.holder?.name ?? "—"}
           </strong>
