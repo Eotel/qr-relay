@@ -1,0 +1,133 @@
+@import "tailwindcss";
+
+/* Class-based dark variant: <html class="dark"> = stage register.
+   Without this, Tailwind v4 defaults to prefers-color-scheme — we
+   want author intent, not OS preference, to choose the register. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ============================================================
+ * UDK design tokens
+ * ------------------------------------------------------------
+ * Two registers map onto shadcn's standard theme slots:
+ *   :root  = Handheld register  (light) — Shake Counter lineage
+ *   .dark  = Stage register     (dark)  — Multi Eyes lineage
+ *
+ * Pick the register at <html>: stage = "dark", handheld = "".
+ * Team palette and radii are register-agnostic.
+ * ============================================================ */
+
+:root {
+  --background: oklch(0.97 0.008 75); /* #faf6f1 cream */
+  --foreground: oklch(0.25 0.005 60); /* #2c2926 */
+  --card: oklch(1 0 0);
+  --card-foreground: var(--foreground);
+  --popover: oklch(0.99 0.006 75); /* #fffbf5 */
+  --popover-foreground: var(--foreground);
+  --primary: oklch(0.65 0.13 35); /* #dc6b4f terracotta */
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.5 0.05 195); /* #2f6e68 teal */
+  --secondary-foreground: oklch(1 0 0);
+  --muted: oklch(0.92 0.01 70); /* #e8ddd0 sand */
+  --muted-foreground: oklch(0.5 0.005 60); /* #6b6660 */
+  --accent: var(--primary);
+  --accent-foreground: var(--primary-foreground);
+  --destructive: oklch(0.62 0.22 27);
+  --border: oklch(0.88 0.012 70);
+  --input: var(--border);
+  --ring: var(--primary);
+  --radius: 0.875rem;
+
+  /* UDK team palette — same values in both registers. Gameplay
+     data, not chrome; do not theme-swap. */
+  --team-red: oklch(0.66 0.22 25); /* ~#ff3b3b */
+  --team-white: oklch(0.97 0.002 280); /* ~#f5f7fa */
+  --team-blue: oklch(0.42 0.21 265); /* ~#1a3fe0 */
+  --team-yellow: oklch(0.88 0.16 92); /* ~#ffd84d */
+  --team-green: oklch(0.72 0.18 145); /* ~#22c55e */
+
+  /* UDK signature elevation — accent-tinted glow, not neutral shadow. */
+  --shadow-cta-primary: 0 6px 18px color-mix(in oklch, var(--primary) 25%, transparent);
+  --shadow-cta-secondary: 0 6px 16px color-mix(in oklch, var(--secondary) 22%, transparent);
+  --shadow-card: 0 12px 28px rgb(15 23 42 / 0.08);
+}
+
+.dark {
+  color-scheme: dark;
+  --background: oklch(0.26 0.025 260); /* #1e2433 slate navy */
+  --foreground: oklch(0.97 0.002 280); /* #f5f5f7 */
+  --card: oklch(0.32 0.025 260); /* #2c3349 */
+  --card-foreground: var(--foreground);
+  --popover: var(--card);
+  --popover-foreground: var(--foreground);
+  --primary: oklch(0.7 0.18 35); /* #ff6b3d orange */
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.62 0.2 255); /* #007aff iOS blue */
+  --secondary-foreground: oklch(1 0 0);
+  /* A genuine muted surface (slightly lighter than card) + a readable
+     text color on it. Pre-fix these were both #b0b8c2, which made every
+     bg-muted/text-muted-foreground pairing invisible. */
+  --muted: oklch(0.38 0.022 260); /* #3a4259 slate panel */
+  --muted-foreground: oklch(0.78 0.02 250); /* #b0b8c2 */
+  --accent: var(--primary);
+  --accent-foreground: var(--primary-foreground);
+  --border: oklch(1 0 0 / 0.1);
+  --input: oklch(0 0 0 / 0.35);
+  --ring: var(--secondary);
+  --shadow-card: 0 0 0 1px oklch(1 0 0 / 0.06), 0 12px 28px rgb(0 0 0 / 0.3);
+}
+
+/* Bridge to Tailwind utilities (bg-primary, text-muted-foreground, etc.) */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-team-red: var(--team-red);
+  --color-team-white: var(--team-white);
+  --color-team-blue: var(--team-blue);
+  --color-team-yellow: var(--team-yellow);
+  --color-team-green: var(--team-green);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 2px);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Helvetica Neue", Arial,
+    sans-serif;
+  --font-mono: "SF Mono", Menlo, monospace;
+}
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html,
+  body {
+    margin: 0;
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button {
+    touch-action: manipulation;
+  }
+}
