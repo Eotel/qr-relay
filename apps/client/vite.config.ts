@@ -42,5 +42,28 @@ export default defineConfig({
         ws: true,
       },
     },
+    watch: {
+      // dev サーバ / HMR は実装コードだけを監視。
+      // テスト・E2E・lint/format 設定・ドキュメント類の変更でリロードしない。
+      ignored: [
+        "**/node_modules/**",
+        "**/dist/**",
+        "**/.git/**",
+        "**/.wrangler/**",
+        "**/coverage/**",
+        "**/playwright-report/**",
+        "**/test-results/**",
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "**/*.spec.ts",
+        "**/*.spec.tsx",
+        "**/e2e/**",
+        "**/playwright.config.*",
+        "**/vitest.config.*",
+        "**/biome.json",
+        "**/*.md",
+        "**/docs/**",
+      ],
+    },
   },
 });
