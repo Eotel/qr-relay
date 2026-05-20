@@ -5,28 +5,45 @@ import type { RankedEntry, Rankings } from "../../lib/host-view.js";
 
 type SortOrder = "desc" | "asc";
 
+/**
+ * - `total`  : raw scan count (total fires for SCAN OUT, total hits for SCAN IN)
+ * - `unique` : distinct partners (how many different people were on the other end)
+ *
+ * Selected globally for both columns from a single chip-row toggle. The
+ * earlier subscript-style display (`13 ·5人`) crammed both numbers into one
+ * cell and made the relationship ambiguous; an explicit toggle makes the
+ * meaning of the big number unambiguous.
+ */
+export type RankingsMetric = "total" | "unique";
+
 type Props = {
   rankings: Rankings;
   /**
-   * Optional per-player encounters (unique scanned partners). When provided
-   * and > 0 it renders as a small subscript next to the SCAN OUT count.
-   * SCAN IN is left as-is — encounters is a scanner-direction signal.
+   * Per-player unique partner counts. SCAN OUT direction: how many distinct
+   * people did this player scan. SCAN IN direction: how many distinct people
+   * scanned this player.
    */
-  encounters?: Record<string, number>;
+  encountersOut?: Record<string, number>;
+  encountersIn?: Record<string, number>;
 };
 
 /**
- * Two-column ranking board with per-column sort toggle. Default order is
- * descending by count (input from `rankings()`); the ↕ button on each header
- * flips to ascending. Stable sort preserves the joinedAt tiebreak from the
- * caller, so equal-count rows stay in lobby order regardless of direction.
+ * Two-column ranking board with per-column sort toggle and a global
+ * metric toggle (total vs unique partners). Default order is descending by
+ * the active metric; the ↕ button on each header flips to ascending.
+ * Stable sort preserves the joinedAt tiebreak from the caller.
  *
  * Rows with count=0 receive a small 未参加 badge so dormant players are
  * obvious without a dedicated dormant view.
  */
-export const RankingsTile = memo(function RankingsTile({ rankings, encounters }: Props) {
+export const RankingsTile = memo(function RankingsTile({
+  rankings,
+  encountersOut,
+  encountersIn,
+}: Props) {
   const [outOrder, setOutOrder] = useState<SortOrder>("desc");
   const [inOrder, setInOrder] = useState<SortOrder>("desc");
+  const [metric, setMetric] = useState<RankingsMetric>("total");
 
   return (
     <section
@@ -36,22 +53,23 @@ export const RankingsTile = memo(function RankingsTile({ rankings, encounters }:
         "border border-white/10 bg-white/[0.04] p-5",
       )}
     >
-      <Header />
+      <Header metric={metric} onMetricChange={setMetric} />
       <div className="grid min-h-0 flex-1 grid-cols-2 gap-3 overflow-hidden">
         <Column
           title="SCAN OUT"
-          subtitle="スキャンした数"
+          subtitle={metric === "total" ? "スキャンした数" : "スキャンした人数"}
           icon={<ScanLine aria-hidden size={16} />}
           entries={rankings.scanOut}
-          encounters={encounters}
+          overrides={metric === "unique" ? encountersOut : undefined}
           order={outOrder}
           onToggleOrder={() => setOutOrder((o) => (o === "desc" ? "asc" : "desc"))}
         />
         <Column
           title="SCAN IN"
-          subtitle="スキャンされた数"
+          subtitle={metric === "total" ? "スキャンされた数" : "スキャンされた人数"}
           icon={<Target aria-hidden size={16} />}
           entries={rankings.scanIn}
+          overrides={metric === "unique" ? encountersIn : undefined}
           order={inOrder}
           onToggleOrder={() => setInOrder((o) => (o === "desc" ? "asc" : "desc"))}
         />
@@ -60,13 +78,57 @@ export const RankingsTile = memo(function RankingsTile({ rankings, encounters }:
   );
 });
 
-function Header() {
+function Header({
+  metric,
+  onMetricChange,
+}: {
+  metric: RankingsMetric;
+  onMetricChange: (m: RankingsMetric) => void;
+}) {
   return (
-    <div className="flex items-baseline justify-between">
+    <div className="flex items-center justify-between gap-3">
       <span className="text-[11px] font-extrabold uppercase tracking-[0.22em] text-muted-foreground">
         RANKINGS
       </span>
+      <div
+        role="group"
+        aria-label="集計方法"
+        className="inline-flex rounded-md border border-white/10 bg-white/[0.04] p-0.5 text-[11px] font-bold tracking-wide"
+      >
+        <MetricChip active={metric === "total"} onClick={() => onMetricChange("total")}>
+          総数
+        </MetricChip>
+        <MetricChip active={metric === "unique"} onClick={() => onMetricChange("unique")}>
+          ユニーク
+        </MetricChip>
+      </div>
     </div>
+  );
+}
+
+function MetricChip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      className={cn(
+        "inline-flex h-6 items-center rounded-sm px-2.5",
+        active
+          ? "bg-primary text-primary-foreground"
+          : "text-muted-foreground hover:bg-white/5",
+      )}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -75,18 +137,31 @@ type ColumnProps = {
   subtitle: string;
   icon: React.ReactNode;
   entries: RankedEntry[];
-  encounters?: Record<string, number>;
+  /**
+   * When provided, the row's displayed count and the sort key are replaced
+   * by `overrides[entry.id]` (defaults to 0 for missing ids). Used to render
+   * the `metric === "unique"` view without rebuilding the upstream Rankings.
+   */
+  overrides?: Record<string, number>;
   order: SortOrder;
   onToggleOrder: () => void;
 };
 
-function Column({ title, subtitle, icon, entries, encounters, order, onToggleOrder }: ColumnProps) {
-  // Input is already desc-sorted with joinedAt-asc tiebreak. For asc we
-  // re-sort stably so same-count rows preserve the lobby-order tiebreak.
+function Column({ title, subtitle, icon, entries, overrides, order, onToggleOrder }: ColumnProps) {
+  // When overrides are active (`unique` metric), the upstream desc-sort no
+  // longer matches. Re-sort by the override value with a joinedAt-style
+  // stable tiebreak (we preserve the input order which already has it).
   const sorted = useMemo(() => {
-    if (order === "desc") return entries;
-    return [...entries].sort((a, b) => a.count - b.count);
-  }, [entries, order]);
+    const display = entries.map((e) => ({
+      ...e,
+      count: overrides ? (overrides[e.id] ?? 0) : e.count,
+    }));
+    if (!overrides && order === "desc") return display;
+    if (order === "desc") {
+      return display.sort((a, b) => b.count - a.count);
+    }
+    return display.sort((a, b) => a.count - b.count);
+  }, [entries, overrides, order]);
 
   return (
     <div className="flex min-h-0 flex-col gap-2">
@@ -115,9 +190,7 @@ function Column({ title, subtitle, icon, entries, encounters, order, onToggleOrd
             参加者なし
           </li>
         ) : (
-          sorted.map((e, i) => (
-            <Row key={e.id} entry={e} rank={i + 1} order={order} encounters={encounters?.[e.id]} />
-          ))
+          sorted.map((e, i) => <Row key={e.id} entry={e} rank={i + 1} order={order} />)
         )}
       </ol>
     </div>
@@ -128,12 +201,10 @@ function Row({
   entry,
   rank,
   order,
-  encounters,
 }: {
   entry: RankedEntry;
   rank: number;
   order: SortOrder;
-  encounters: number | undefined;
 }) {
   const isTop = order === "desc" && rank <= 3 && entry.count > 0;
   const isDormant = entry.count === 0;
@@ -158,14 +229,7 @@ function Row({
           未参加
         </span>
       )}
-      <span className="shrink-0 tabular-nums text-[var(--primary)]">
-        {entry.count}
-        {encounters !== undefined && encounters > 0 && (
-          <span className="ml-1 text-[0.55em] font-bold tracking-wide text-muted-foreground">
-            ·{encounters}人
-          </span>
-        )}
-      </span>
+      <span className="shrink-0 tabular-nums text-[var(--primary)]">{entry.count}</span>
     </li>
   );
 }

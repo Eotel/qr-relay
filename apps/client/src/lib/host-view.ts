@@ -250,6 +250,45 @@ export function encounterCounts(state: unknown, players: PlayerLite[]): Record<s
 }
 
 /**
+ * Reverse-direction encounters: per scanned player, count the number of
+ * distinct scanners that have ever scanned them (regardless of how many
+ * times each). Mirrors `encounterCounts` for the SCAN IN side so the
+ * rankings tile can offer a "unique partner" view symmetrically.
+ *
+ * Derived from `RelayState.pairCounts` (keys shaped `"scannerId>scannedId"`).
+ * Every known player is included, defaulting to 0 for players nobody has
+ * scanned yet.
+ */
+export function inboundEncounterCounts(
+  state: unknown,
+  players: PlayerLite[],
+): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const p of players) out[p.id] = 0;
+  if (!state || typeof state !== "object") return out;
+  const raw = (state as RelayStateWithPairCounts).pairCounts;
+  if (!raw || typeof raw !== "object") return out;
+  const known = new Set(players.map((p) => p.id));
+  const seen = new Map<string, Set<string>>();
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) continue;
+    const idx = key.indexOf(">");
+    if (idx <= 0 || idx === key.length - 1) continue;
+    const scannerId = key.slice(0, idx);
+    const scannedId = key.slice(idx + 1);
+    if (!known.has(scannedId)) continue;
+    let set = seen.get(scannedId);
+    if (!set) {
+      set = new Set<string>();
+      seen.set(scannedId, set);
+    }
+    set.add(scannerId);
+  }
+  for (const [id, set] of seen) out[id] = set.size;
+  return out;
+}
+
+/**
  * Scan history in time-ascending order, each entry resolved to player names so
  * the dashboard can render `Alice → Bob` rows without re-joining player data.
  * Unknown player IDs (e.g., disconnected) fall back to a short id stub so the

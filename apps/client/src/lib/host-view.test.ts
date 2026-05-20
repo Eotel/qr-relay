@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   computeGridShape,
   encounterCounts,
+  inboundEncounterCounts,
   pickHostHeroView,
   rankings,
   summarizeMetricsForHost,
@@ -300,6 +301,50 @@ describe("encounterCounts", () => {
       players,
     );
     expect(counts).toEqual({ alice: 1, bob: 0, carol: 0 });
+  });
+});
+
+describe("inboundEncounterCounts", () => {
+  it("counts distinct scannerIds per scannedId from pairCounts", () => {
+    const counts = inboundEncounterCounts(
+      stateWithPairCounts({
+        "alice>bob": 3,
+        "carol>bob": 1,
+        "alice>carol": 1,
+      }),
+      players,
+    );
+    // bob was scanned by alice + carol → 2; carol was scanned by alice → 1; alice was scanned by nobody → 0
+    expect(counts).toEqual({ alice: 0, bob: 2, carol: 1 });
+  });
+
+  it("repeat scans from the same partner do not inflate the unique count", () => {
+    const counts = inboundEncounterCounts(
+      stateWithPairCounts({
+        "alice>bob": 10,
+      }),
+      players,
+    );
+    expect(counts).toEqual({ alice: 0, bob: 1, carol: 0 });
+  });
+
+  it("returns zero for every known player when state has no pairCounts", () => {
+    expect(inboundEncounterCounts(null, players)).toEqual({ alice: 0, bob: 0, carol: 0 });
+    expect(inboundEncounterCounts({}, players)).toEqual({ alice: 0, bob: 0, carol: 0 });
+  });
+
+  it("ignores malformed keys", () => {
+    const counts = inboundEncounterCounts(
+      stateWithPairCounts({
+        "alice>bob": 1,
+        "carol-bob": 5,
+        ">bob": 5,
+        "alice>": 5,
+        "bob>carol": Number.NaN,
+      }),
+      players,
+    );
+    expect(counts).toEqual({ alice: 0, bob: 1, carol: 0 });
   });
 });
 

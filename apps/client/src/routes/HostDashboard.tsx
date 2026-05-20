@@ -13,6 +13,7 @@ import {
   type Rankings,
   type TokenPathStep,
   encounterCounts,
+  inboundEncounterCounts,
   pickHostHeroView,
   rankings,
   summarizeMetricsForHost,
@@ -75,8 +76,12 @@ export function HostDashboard({ code }: Props) {
     () => (mode === "rankings" ? rankings(state, players) : EMPTY_RANKINGS),
     [mode, state, players],
   );
-  const encounters = useMemo(
+  const encountersOut = useMemo(
     () => (mode === "rankings" ? encounterCounts(state, players) : EMPTY_ENCOUNTERS),
+    [mode, state, players],
+  );
+  const encountersIn = useMemo(
+    () => (mode === "rankings" ? inboundEncounterCounts(state, players) : EMPTY_ENCOUNTERS),
     [mode, state, players],
   );
   const chain = useMemo(
@@ -105,7 +110,11 @@ export function HostDashboard({ code }: Props) {
         <JoinQrTile code={code} variant={overviewKind === "waiting" ? "featured" : "compact"} />
       </Cell>
       <Cell area="rankings" visible={mode === "rankings"}>
-        <RankingsTile rankings={rankingsData} encounters={encounters} />
+        <RankingsTile
+          rankings={rankingsData}
+          encountersOut={encountersOut}
+          encountersIn={encountersIn}
+        />
       </Cell>
       <Cell area="path" visible={mode === "token-path"}>
         <TokenPathTile chain={chain} />
