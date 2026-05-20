@@ -67,6 +67,12 @@ apps/client ─┘         └─ packages/handlers ─┘
   `ScanRule` config (data) として表現される (`token` / `score` の 2 軸、`status` は廃止)。
 - 時間軸 (開始 / 一時停止 / リセット) は handler の責務ではなく、Durable Object の
   phase 状態機械が握る ([docs/adr/0003](docs/adr/0003-game-phase-state-machine.md))。
+- ゲーム開始後の **途中参加** は `reduceJoin` が `handler.onPlayerJoin` を
+  呼んでスロットを足す ([docs/adr/0008](docs/adr/0008-handler-on-player-join.md))。
+  これが無いと late joiner の scan が silent に落ちる。**退出** は
+  `reduceLeave` (HTTP `POST /api/rooms/:code/leave`) が `handler.onPlayerLeave`
+  を呼んでスロットを取り除く。debug bot console の「全削除」がサーバ側の
+  participants を実際に消すのもこのルート。
 - 新しい遊び方を足したいときの第一選択は **プリセット追加**、relay で表現できない場合に
   限り別 handler を実装する。詳細:
   [docs/design-docs/scan-handler-contract.md](docs/design-docs/scan-handler-contract.md)
@@ -87,8 +93,9 @@ apps/client ─┘         └─ packages/handlers ─┘
                 │      │ Clock.now() / 入力                    │
                 │      ▼                                       │
                 │  apps/server/src/room-domain.ts              │  ◀── pure domain
-                │  reduceInit / reduceJoin / reduceStart /     │      (vitest で
-                │  reduceScan / gcNonces / computeMetrics      │       直接呼べる)
+                │  reduceInit / reduceJoin / reduceLeave /     │      (vitest で
+                │  reduceStart / reduceScan / gcNonces /       │       直接呼べる)
+                │  computeMetrics                              │
                 │                                              │
                 └──────────────────────────────────────────────┘
 

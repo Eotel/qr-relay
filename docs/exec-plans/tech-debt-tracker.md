@@ -1,6 +1,6 @@
 # Tech Debt Tracker
 
-Last reviewed: 2026-05-20
+Last reviewed: 2026-05-20 (ADR-0008 解消エントリ追加)
 
 「いつかやる」レベルの負債を集約。優先度をつけて時々レビューする。
 
@@ -92,3 +92,11 @@ Last reviewed: 2026-05-20
   [ADR-0002](../adr/0002-move-end-conditions-out-of-engine.md) /
   [ADR-0003](../adr/0003-game-phase-state-machine.md)、実装プラン
   [exec-plans/completed/2026-05-20-engine-simplification.md](completed/2026-05-20-engine-simplification.md)。
+
+- **2026-05-20**: ゲーム開始後に join したプレイヤーの scan が silent に
+  no-op で落ちる不具合を修正。`ScanHandler` に `onPlayerJoin` /
+  `onPlayerLeave` 2 つの hook を追加し、`reduceJoin` / `reduceLeave` から
+  呼ぶようにした。`relay` handler が両方実装、新規プレイヤーぶんの
+  値スロットが即座に materialize されるので途中参加でも scan が成立する。
+  [ADR-0008](../adr/0008-handler-on-player-join.md)。発見経緯は
+  [exec-plans/active/2026-05-20-client-debug-bot-console.md](active/2026-05-20-client-debug-bot-console.md)。

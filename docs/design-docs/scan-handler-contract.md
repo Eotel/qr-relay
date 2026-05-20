@@ -1,6 +1,6 @@
 # ScanHandler Contract
 
-Last reviewed: 2026-05-20
+Last reviewed: 2026-05-20 (onPlayerJoin / onPlayerLeave 追加)
 
 新しい遊び方を追加するときに参照するハンドラー仕様。多くの場合は
 **プリセット追加 (data 変更のみ)** で完結する。relay で表現できない novel ロジックが必要な
@@ -21,6 +21,8 @@ interface ScanHandler<TConfig, TState, TData> {
   readonly dataSchema: ZodType<TData, ZodTypeDef, unknown>;
 
   initialState(args: { config; players; now }): TState;
+  onPlayerJoin?(args: { state; config; player; now }): TState;
+  onPlayerLeave?(args: { state; config; player; now }): TState;
   payloadFor(args: { state; config; player }): TData;
   onScan(args: { state; config; scanner; scanned; payloadData; now }):
     { nextState: TState; events: GameEvent[] };
@@ -33,9 +35,21 @@ interface ScanHandler<TConfig, TState, TData> {
 | メソッド | 何を返す | 副作用 |
 |---|---|---|
 | `initialState` | ゲーム開始時の TState | なし。`now` は引数で受け取る |
+| `onPlayerJoin` (任意) | 途中参加プレイヤーぶんを足した次の state | なし。`reduceJoin` が state 初期化済みかつ新規プレイヤーのときだけ呼ぶ |
+| `onPlayerLeave` (任意) | 退出プレイヤーぶんを取り除いた次の state | なし。`reduceLeave` が state 初期化済みのときに呼ぶ |
 | `payloadFor` | プレイヤーが今 QR に載せるべき TData | なし。state からの投影 |
 | `onScan` | 状態遷移後の next state と発生 event | なし。決定的、純粋関数 |
 | `metrics` | UI 表示用の Metric (count / score) | なし |
+
+`onPlayerJoin` を実装しない handler は、ゲーム開始後に join したプレイヤーが
+`state` 上では「居ないもの」として扱われる。relay の `onScan` は値スロットが
+無いペアを silent no-op で落とすので、scan が成立しないまま気付かない、
+という silent failure に繋がる。新 handler を作るときは原則として
+`onPlayerJoin` / `onPlayerLeave` を対で実装するか、もしくは「途中参加を許さない」
+運用前提を明文化する。relay の `onPlayerLeave` は `scanCounts` /
+`pairCounts` / `history` を維持し、`state.values[id]` だけを落とす
+(退出後も「すれ違った人数」は履歴として残す)。詳細は
+[ADR-0008](../adr/0008-handler-on-player-join.md)。
 
 すべて pure function。`Date.now()` / `Math.random()` / `fetch` を直接呼んではいけない。
 時刻は `now`、ランダム性が必要なら呼び出し側が引数で渡す。
@@ -195,6 +209,11 @@ scan は `reduceScan` 冒頭で `phase.kind !== "running"` を弾くので、han
 
 - 既存の `relayHandler` を上書きしない (`id` を必ず別名にする)。
 - pure function 原則を守る ([core-beliefs.md §2](core-beliefs.md#2-handler-は-server--client-両方で動く-pure-function))。
+- 途中参加 / 退出に対応するなら `onPlayerJoin` / `onPlayerLeave` を実装する。
+  新規プレイヤーぶんを 1 箇所追加 / 退出プレイヤーぶんを 1 箇所削除する
+  だけで済むことが多い。実装しない場合、ゲーム開始後 join したプレイヤーは
+  scan / scanned 双方向で silent に落ち、退出プレイヤーは metric から消えない
+  ([ADR-0008](../adr/0008-handler-on-player-join.md))。
 - 画像本体など大容量データは QR に直接乗せない。`tokenRef = { id, sha256 }` を QR に
   乗せ、実体は DO storage / R2 に置く方針 (まだ実装していない。
   [../exec-plans/tech-debt-tracker.md](../exec-plans/tech-debt-tracker.md))。

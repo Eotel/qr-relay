@@ -1,6 +1,6 @@
 # Docs Index
 
-Last reviewed: 2026-05-20
+Last reviewed: 2026-05-20 (ADR-0008 / debug bot console)
 
 このリポジトリの永続的なドキュメントの system of record。エージェント向けの
 入口は [../AGENTS.md](../AGENTS.md)、コード構成の入口は

@@ -15,8 +15,9 @@
 |---|---|
 | ルームの URL 規約 | host = `/r/CODE/host`、参加者 = `/r/CODE` (URL = intent / localStorage = authority。`/host` は装飾で、`lib/identity.ts` の `acceptInviteRole` が role を最終決定する) |
 | 新しい遊び方 (プリセット) を追加 | [docs/design-docs/scan-handler-contract.md](docs/design-docs/scan-handler-contract.md) の「新プリセット追加 5 ステップ」 |
-| relay で表現できない novel ロジックを足す | 同上「novel handler を追加」セクション |
+| relay で表現できない novel ロジックを足す | 同上「novel handler を追加」セクション。途中参加 / 退出に対応するなら `onPlayerJoin` / `onPlayerLeave` を実装する ([ADR-0008](docs/adr/0008-handler-on-player-join.md)) |
 | プリセットの仕様確認 | [docs/product-specs/presets.md](docs/product-specs/presets.md) |
+| 実機 N 台を並べずに WS / scan / phase / 異常系を試す | `/debug` (DEV ビルドのみ。本番からは tree-shake で除外)。準備手順は [docs/exec-plans/active/2026-05-20-client-debug-bot-console.md](docs/exec-plans/active/2026-05-20-client-debug-bot-console.md) |
 | 大きな実装着手前の計画 | [docs/exec-plans/plan-template.md](docs/exec-plans/plan-template.md) を `docs/exec-plans/active/` にコピー |
 | 既知の負債を見る | [docs/exec-plans/tech-debt-tracker.md](docs/exec-plans/tech-debt-tracker.md) |
 | MVP 構築時の設計判断 | [docs/exec-plans/completed/2026-05-19-initial-mvp.md](docs/exec-plans/completed/2026-05-19-initial-mvp.md) |
